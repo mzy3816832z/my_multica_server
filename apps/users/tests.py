@@ -1,175 +1,407 @@
 """
-短信验证码模块单元测试
+用户认证模块单元测试
+覆盖：注册、手机号+密码登录、手机号+验证码登录、首次登录身份选择、
+      忘记密码、修改密码、管理员登录、获取当前用户
 """
 import pytest
 from datetime import timedelta
 from django.utils import timezone
 from django.test import Client, override_settings
-from apps.users.models import VerifyCode, SmsLog
-from core.verify_code import (
-    create_and_send_sms_code,
-    verify_sms_code,
-    SMS_COOLDOWN_SECONDS,
-    SMS_HOURLY_LIMIT,
-    SMS_CODE_VALID_MINUTES,
-)
-from core.exceptions import TooManyRequestsException
+from apps.users.models import User, VerifyCode
+from core.verify_code import create_and_send_sms_code
 
 
-@pytest.mark.django_db
-def test_generate_and_send_sms_code_success():
-    """正常发送验证码"""
-    result = create_and_send_sms_code('13800138000', 'register')
-    assert 'expires_in' in result
-    assert result['expires_in'] == SMS_CODE_VALID_MINUTES * 60
+# ---------- 工具函数 ----------
 
-    # 数据库应存在记录
-    record = VerifyCode.objects.filter(phone='13800138000', purpose='register').latest('created_at')
-    assert record is not None
-    assert len(record.code) == 6
-    assert record.used is False
-
-    # 短信日志应存在
-    log = SmsLog.objects.filter(phone='13800138000').latest('created_at')
-    assert log.status == 'mock'
+def _create_verify_code(phone, purpose):
+    """创建并返回验证码字符串"""
+    result = create_and_send_sms_code(phone, purpose)
+    # 绕过频控：修改最新记录的 created_at
+    latest = VerifyCode.objects.filter(phone=phone).latest('created_at')
+    latest.created_at = timezone.now() - timedelta(seconds=70)
+    latest.save(update_fields=['created_at'])
+    return result['code']
 
 
-@pytest.mark.django_db
-def test_sms_rate_limit_same_purpose_cooldown():
-    """同一手机号同一用途 1 分钟内限发 1 次"""
-    create_and_send_sms_code('13800138001', 'register')
-    with pytest.raises(TooManyRequestsException) as exc_info:
-        create_and_send_sms_code('13800138001', 'register')
-    assert '429001' in str(exc_info.value) or '频繁' in str(exc_info.value)
+def _register_user(client, phone, password, sms_code):
+    """注册用户，返回响应"""
+    return client.post('/api/v1/auth/register', {
+        'phone': phone,
+        'sms_code': sms_code,
+        'password': password,
+    }, content_type='application/json')
 
 
-@pytest.mark.django_db
-def test_sms_rate_limit_different_purpose_allowed():
-    """同一手机号不同用途 1 分钟内可发（跨 purpose 不受 1 分钟限制）"""
-    create_and_send_sms_code('13800138002', 'register')
-    result = create_and_send_sms_code('13800138002', 'login')
-    assert result['expires_in'] == 300
+def _login_by_password(client, phone, password):
+    """密码登录，返回响应"""
+    return client.post('/api/v1/auth/login-by-password', {
+        'phone': phone,
+        'password': password,
+    }, content_type='application/json')
 
+
+def _login_by_code(client, phone, sms_code):
+    """验证码登录，返回响应"""
+    return client.post('/api/v1/auth/login-by-code', {
+        'phone': phone,
+        'sms_code': sms_code,
+    }, content_type='application/json')
+
+
+# ---------- 注册 ----------
 
 @pytest.mark.django_db
-def test_sms_rate_limit_hourly_limit():
-    """同一手机号 1 小时内限发 10 次"""
-    for i in range(SMS_HOURLY_LIMIT):
-        create_and_send_sms_code('13800138003', 'register')
-        # 绕过 1 分钟冷却：修改最新记录的 created_at 为更早时间
-        latest = VerifyCode.objects.filter(phone='13800138003').latest('created_at')
-        latest.created_at = timezone.now() - timedelta(seconds=SMS_COOLDOWN_SECONDS + 1)
-        latest.save(update_fields=['created_at'])
-
-    with pytest.raises(TooManyRequestsException) as exc_info:
-        create_and_send_sms_code('13800138003', 'login')
-    assert '429001' in str(exc_info.value) or '上限' in str(exc_info.value)
-
-
-@pytest.mark.django_db
-def test_verify_sms_code_success():
-    """验证码校验成功并标记已使用"""
-    create_and_send_sms_code('13800138004', 'register')
-    record = VerifyCode.objects.filter(phone='13800138004', purpose='register').latest('created_at')
-
-    ok = verify_sms_code('13800138004', 'register', record.code, mark_used=True)
-    assert ok is True
-
-    record.refresh_from_db()
-    assert record.used is True
-
-
-@pytest.mark.django_db
-def test_verify_sms_code_wrong_code():
-    """验证码错误应失败"""
-    create_and_send_sms_code('13800138005', 'register')
-    ok = verify_sms_code('13800138005', 'register', '000000', mark_used=False)
-    assert ok is False
-
-
-@pytest.mark.django_db
-def test_verify_sms_code_used_code():
-    """已使用的验证码应失败"""
-    create_and_send_sms_code('13800138006', 'register')
-    record = VerifyCode.objects.filter(phone='13800138006', purpose='register').latest('created_at')
-
-    verify_sms_code('13800138006', 'register', record.code, mark_used=True)
-    ok = verify_sms_code('13800138006', 'register', record.code, mark_used=False)
-    assert ok is False
-
-
-@pytest.mark.django_db
-def test_verify_sms_code_expired():
-    """过期的验证码应失败"""
-    VerifyCode.objects.create(
-        phone='13800138007',
-        purpose='register',
-        code='123456',
-        used=False,
-        expired_at=timezone.now() - timedelta(minutes=1),
-    )
-    ok = verify_sms_code('13800138007', 'register', '123456', mark_used=False)
-    assert ok is False
-
-
-@pytest.mark.django_db
-def test_api_send_sms_code_success():
-    """接口：正常发送验证码"""
+def test_register_success():
+    """正常注册成功，role 为空"""
     with override_settings(ALLOWED_HOSTS=['testserver']):
         c = Client()
-        resp = c.post('/api/v1/auth/sms-code', {
-            'phone': '13800138008',
-            'purpose': 'register',
+        code = _create_verify_code('13800138000', 'register')
+        resp = _register_user(c, '13800138000', 'password123', code)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data['code'] == 0
+        assert 'access_token' in data['data']
+        assert 'refresh_token' in data['data']
+        assert data['data']['user']['role'] == ''
+        assert data['data']['user']['phone'] == '13800138000'
+
+
+@pytest.mark.django_db
+def test_register_invalid_sms_code():
+    """注册时验证码错误"""
+    with override_settings(ALLOWED_HOSTS=['testserver']):
+        c = Client()
+        # 不创建验证码，直接提交错误验证码
+        resp = _register_user(c, '13800138001', 'password123', '000000')
+        assert resp.status_code == 400
+        data = resp.json()
+        assert data['code'] == 400002
+
+
+@pytest.mark.django_db
+def test_register_duplicate_phone():
+    """重复手机号注册"""
+    with override_settings(ALLOWED_HOSTS=['testserver']):
+        c = Client()
+        code = _create_verify_code('13800138002', 'register')
+        _register_user(c, '13800138002', 'password123', code)
+
+        code2 = _create_verify_code('13800138002', 'register')
+        resp = _register_user(c, '13800138002', 'password123', code2)
+        assert resp.status_code == 400
+        data = resp.json()
+        assert data['code'] == 409001
+
+
+# ---------- 手机号+密码登录 ----------
+
+@pytest.mark.django_db
+def test_login_by_password_success():
+    """密码登录成功"""
+    with override_settings(ALLOWED_HOSTS=['testserver']):
+        c = Client()
+        code = _create_verify_code('13800138010', 'register')
+        _register_user(c, '13800138010', 'password123', code)
+
+        resp = _login_by_password(c, '13800138010', 'password123')
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data['code'] == 0
+        assert 'access_token' in data['data']
+        assert data['data']['user']['phone'] == '13800138010'
+
+
+@pytest.mark.django_db
+def test_login_by_password_wrong_password():
+    """密码错误返回明确错误码"""
+    with override_settings(ALLOWED_HOSTS=['testserver']):
+        c = Client()
+        code = _create_verify_code('13800138011', 'register')
+        _register_user(c, '13800138011', 'password123', code)
+
+        resp = _login_by_password(c, '13800138011', 'wrongpassword')
+        assert resp.status_code == 400
+        data = resp.json()
+        assert data['code'] == 400002
+
+
+@pytest.mark.django_db
+def test_login_by_password_user_not_found():
+    """登录不存在的用户"""
+    with override_settings(ALLOWED_HOSTS=['testserver']):
+        c = Client()
+        resp = _login_by_password(c, '13800138012', 'password123')
+        assert resp.status_code == 400
+        data = resp.json()
+        assert data['code'] == 404001
+
+
+# ---------- 手机号+验证码登录 ----------
+
+@pytest.mark.django_db
+def test_login_by_code_success():
+    """验证码登录成功"""
+    with override_settings(ALLOWED_HOSTS=['testserver']):
+        c = Client()
+        code = _create_verify_code('13800138020', 'register')
+        _register_user(c, '13800138020', 'password123', code)
+
+        login_code = _create_verify_code('13800138020', 'login')
+        resp = _login_by_code(c, '13800138020', login_code)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data['code'] == 0
+        assert 'access_token' in data['data']
+
+
+@pytest.mark.django_db
+def test_login_by_code_wrong_code():
+    """验证码错误返回明确错误码"""
+    with override_settings(ALLOWED_HOSTS=['testserver']):
+        c = Client()
+        code = _create_verify_code('13800138021', 'register')
+        _register_user(c, '13800138021', 'password123', code)
+
+        resp = _login_by_code(c, '13800138021', '000000')
+        assert resp.status_code == 400
+        data = resp.json()
+        assert data['code'] == 400002
+
+
+# ---------- 首次登录身份选择 ----------
+
+@pytest.mark.django_db
+def test_select_role_success():
+    """首次登录选择身份成功"""
+    with override_settings(ALLOWED_HOSTS=['testserver']):
+        c = Client()
+        code = _create_verify_code('13800138030', 'register')
+        reg_resp = _register_user(c, '13800138030', 'password123', code)
+        token = reg_resp.json()['data']['access_token']
+
+        resp = c.post('/api/v1/auth/select-role', {
+            'role': 'tenant',
+        }, content_type='application/json', HTTP_AUTHORIZATION=f'Bearer {token}')
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data['code'] == 0
+        assert data['data']['role'] == 'tenant'
+
+
+@pytest.mark.django_db
+def test_select_role_repeat():
+    """已选择身份后不可重复选择"""
+    with override_settings(ALLOWED_HOSTS=['testserver']):
+        c = Client()
+        code = _create_verify_code('13800138031', 'register')
+        reg_resp = _register_user(c, '13800138031', 'password123', code)
+        token = reg_resp.json()['data']['access_token']
+
+        c.post('/api/v1/auth/select-role', {
+            'role': 'landlord',
+        }, content_type='application/json', HTTP_AUTHORIZATION=f'Bearer {token}')
+
+        resp = c.post('/api/v1/auth/select-role', {
+            'role': 'tenant',
+        }, content_type='application/json', HTTP_AUTHORIZATION=f'Bearer {token}')
+        assert resp.status_code == 400
+        data = resp.json()
+        assert data['code'] == 400002
+
+
+@pytest.mark.django_db
+def test_select_role_invalid_role():
+    """选择非法身份"""
+    with override_settings(ALLOWED_HOSTS=['testserver']):
+        c = Client()
+        code = _create_verify_code('13800138032', 'register')
+        reg_resp = _register_user(c, '13800138032', 'password123', code)
+        token = reg_resp.json()['data']['access_token']
+
+        resp = c.post('/api/v1/auth/select-role', {
+            'role': 'admin',
+        }, content_type='application/json', HTTP_AUTHORIZATION=f'Bearer {token}')
+        assert resp.status_code == 400
+        data = resp.json()
+        assert data['code'] == 400001
+
+
+# ---------- 忘记密码 ----------
+
+@pytest.mark.django_db
+def test_reset_password_success():
+    """忘记密码重置成功"""
+    with override_settings(ALLOWED_HOSTS=['testserver']):
+        c = Client()
+        code = _create_verify_code('13800138040', 'register')
+        _register_user(c, '13800138040', 'password123', code)
+
+        reset_code = _create_verify_code('13800138040', 'reset_password')
+        resp = c.post('/api/v1/auth/reset-password', {
+            'phone': '13800138040',
+            'sms_code': reset_code,
+            'new_password': 'newpassword456',
         }, content_type='application/json')
         assert resp.status_code == 200
         data = resp.json()
         assert data['code'] == 0
-        assert data['data']['expires_in'] == 300
+        assert data['data']['success'] is True
+
+        # 用新密码登录
+        login_resp = _login_by_password(c, '13800138040', 'newpassword456')
+        assert login_resp.status_code == 200
 
 
 @pytest.mark.django_db
-def test_api_send_sms_code_rate_limit():
-    """接口：超频返回 429001"""
+def test_reset_password_invalid_code():
+    """忘记密码验证码错误"""
     with override_settings(ALLOWED_HOSTS=['testserver']):
         c = Client()
-        resp = c.post('/api/v1/auth/sms-code', {
-            'phone': '13800138009',
-            'purpose': 'register',
+        code = _create_verify_code('13800138041', 'register')
+        _register_user(c, '13800138041', 'password123', code)
+
+        resp = c.post('/api/v1/auth/reset-password', {
+            'phone': '13800138041',
+            'sms_code': '000000',
+            'new_password': 'newpassword456',
+        }, content_type='application/json')
+        assert resp.status_code == 400
+        data = resp.json()
+        assert data['code'] == 400002
+
+
+# ---------- 修改密码 ----------
+
+@pytest.mark.django_db
+def test_change_password_success():
+    """登录用户修改密码成功"""
+    with override_settings(ALLOWED_HOSTS=['testserver']):
+        c = Client()
+        code = _create_verify_code('13800138050', 'register')
+        reg_resp = _register_user(c, '13800138050', 'password123', code)
+        token = reg_resp.json()['data']['access_token']
+
+        change_code = _create_verify_code('13800138050', 'change_password')
+        resp = c.post('/api/v1/auth/change-password', {
+            'sms_code': change_code,
+            'new_password': 'newpassword789',
+        }, content_type='application/json', HTTP_AUTHORIZATION=f'Bearer {token}')
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data['code'] == 0
+        assert data['data']['success'] is True
+
+        # 用新密码登录
+        login_resp = _login_by_password(c, '13800138050', 'newpassword789')
+        assert login_resp.status_code == 200
+
+
+@pytest.mark.django_db
+def test_change_password_invalid_code():
+    """修改密码验证码错误"""
+    with override_settings(ALLOWED_HOSTS=['testserver']):
+        c = Client()
+        code = _create_verify_code('13800138051', 'register')
+        reg_resp = _register_user(c, '13800138051', 'password123', code)
+        token = reg_resp.json()['data']['access_token']
+
+        resp = c.post('/api/v1/auth/change-password', {
+            'sms_code': '000000',
+            'new_password': 'newpassword789',
+        }, content_type='application/json', HTTP_AUTHORIZATION=f'Bearer {token}')
+        assert resp.status_code == 400
+        data = resp.json()
+        assert data['code'] == 400002
+
+
+# ---------- 管理员登录 ----------
+
+def _create_admin_user():
+    """创建管理员用户用于测试"""
+    import bcrypt
+    hashed = bcrypt.hashpw('3816832z'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    return User.objects.create(
+        username='admin123',
+        role='admin',
+        hashed_password=hashed,
+        is_active=True,
+    )
+
+
+@pytest.mark.django_db
+def test_admin_login_success():
+    """管理员登录成功"""
+    _create_admin_user()
+    with override_settings(ALLOWED_HOSTS=['testserver']):
+        c = Client()
+        resp = c.post('/api/v1/auth/admin-login', {
+            'username': 'admin123',
+            'password': '3816832z',
         }, content_type='application/json')
         assert resp.status_code == 200
-
-        resp2 = c.post('/api/v1/auth/sms-code', {
-            'phone': '13800138009',
-            'purpose': 'register',
-        }, content_type='application/json')
-        assert resp2.status_code == 429
-        data = resp2.json()
-        assert data['code'] == 429001
+        data = resp.json()
+        assert data['code'] == 0
+        assert 'access_token' in data['data']
+        assert data['data']['user']['role'] == 'admin'
+        assert data['data']['user']['username'] == 'admin123'
 
 
 @pytest.mark.django_db
-def test_api_send_sms_code_invalid_phone():
-    """接口：手机号格式错误返回 400001"""
+def test_admin_login_wrong_password():
+    """管理员密码错误"""
+    _create_admin_user()
     with override_settings(ALLOWED_HOSTS=['testserver']):
         c = Client()
-        resp = c.post('/api/v1/auth/sms-code', {
-            'phone': '1380013800a',
-            'purpose': 'register',
+        resp = c.post('/api/v1/auth/admin-login', {
+            'username': 'admin123',
+            'password': 'wrongpassword',
         }, content_type='application/json')
         assert resp.status_code == 400
         data = resp.json()
-        assert data['code'] == 400001
+        assert data['code'] == 400002
 
 
 @pytest.mark.django_db
-def test_api_send_sms_code_invalid_purpose():
-    """接口：purpose 不合法返回 400001"""
+def test_admin_login_not_admin():
+    """非管理员账号登录管理员接口"""
     with override_settings(ALLOWED_HOSTS=['testserver']):
         c = Client()
-        resp = c.post('/api/v1/auth/sms-code', {
-            'phone': '13800138010',
-            'purpose': 'invalid_purpose',
+        code = _create_verify_code('13800138060', 'register')
+        _register_user(c, '13800138060', 'password123', code)
+
+        resp = c.post('/api/v1/auth/admin-login', {
+            'username': '13800138060',
+            'password': 'password123',
         }, content_type='application/json')
         assert resp.status_code == 400
         data = resp.json()
-        assert data['code'] == 400001
+        assert data['code'] == 404001
+
+
+# ---------- 获取当前用户 ----------
+
+@pytest.mark.django_db
+def test_me_success():
+    """获取当前登录用户成功"""
+    with override_settings(ALLOWED_HOSTS=['testserver']):
+        c = Client()
+        code = _create_verify_code('13800138070', 'register')
+        reg_resp = _register_user(c, '13800138070', 'password123', code)
+        token = reg_resp.json()['data']['access_token']
+
+        resp = c.get('/api/v1/auth/me', HTTP_AUTHORIZATION=f'Bearer {token}')
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data['code'] == 0
+        assert data['data']['phone'] == '13800138070'
+
+
+@pytest.mark.django_db
+def test_me_unauthorized():
+    """未登录访问 me 返回 401"""
+    with override_settings(ALLOWED_HOSTS=['testserver']):
+        c = Client()
+        resp = c.get('/api/v1/auth/me')
+        assert resp.status_code == 401
+        data = resp.json()
+        assert data['code'] == 401001

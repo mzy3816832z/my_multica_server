@@ -252,6 +252,7 @@ def seed_admin_user():
         username=ADMIN_USERNAME,
         phone=None,
         hashed_password=hashed,
+        password='',  # AbstractBaseUser 要求，留空
         role=ADMIN_ROLE,
         is_active=True,
     )
