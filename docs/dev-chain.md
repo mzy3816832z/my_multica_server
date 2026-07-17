@@ -1,4 +1,4 @@
-# 分支链记录
+| 04 | feature/apartment-rental/step-04 | feature/apartment-rental/step-03 | b6b3759 | 2026-07-17 | 待合并 |# 分支链记录
 
 | step | 分支名 | 基于分支 | 最新commit | 完成日期 | 状态 |
 |------|--------|----------|------------|----------|------|
