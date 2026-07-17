@@ -5,7 +5,33 @@ from django.db import models
 from core.models import BaseModel, SoftDeleteManager, AllObjectsManager
 
 
-class User(BaseModel):
+from django.contrib.auth.models import AbstractBaseUser
+from django.contrib.auth.base_user import BaseUserManager
+from django.db import models
+from core.models import BaseModel, SoftDeleteManager, AllObjectsManager
+
+
+class UserManager(BaseUserManager, SoftDeleteManager):
+    """
+    自定义用户管理器
+    """
+    def create_user(self, phone=None, username=None, password=None, role='', **extra_fields):
+        if not phone and not username:
+            raise ValueError('必须提供手机号或用户名')
+        user = self.model(phone=phone, username=username, role=role, **extra_fields)
+        if password:
+            from core.security import hash_password
+            user.hashed_password = hash_password(password)
+        user.save(using=self._db)
+        return user
+
+    def create_superuser(self, username, password=None, **extra_fields):
+        extra_fields.setdefault('is_active', True)
+        extra_fields.setdefault('role', 'admin')
+        return self.create_user(username=username, password=password, **extra_fields)
+
+
+class User(AbstractBaseUser, BaseModel):
     ROLE_CHOICES = [
         ('tenant', '租客'),
         ('landlord', '商家'),
@@ -34,6 +60,8 @@ class User(BaseModel):
         max_length=20,
         choices=ROLE_CHOICES,
         db_index=True,
+        default='',
+        blank=True,
         verbose_name='角色',
     )
     is_active = models.BooleanField(
@@ -41,8 +69,11 @@ class User(BaseModel):
         verbose_name='是否启用',
     )
 
-    objects = SoftDeleteManager()
+    objects = UserManager()
     all_objects = AllObjectsManager()
+
+    USERNAME_FIELD = 'username'
+    REQUIRED_FIELDS = []
 
     class Meta:
         db_table = 'users'
@@ -54,6 +85,30 @@ class User(BaseModel):
 
     def __str__(self):
         return self.username or self.phone or f'User({self.id})'
+
+    @property
+    def is_staff(self):
+        return self.role == 'admin'
+
+    @property
+    def is_superuser(self):
+        return self.role == 'admin'
+
+    def has_perm(self, perm, obj=None):
+        return self.is_staff
+
+    def has_module_perms(self, app_label):
+        return self.is_staff
+
+    def set_password(self, raw_password):
+        """Django 默认密码设置方法，映射到 hashed_password"""
+        import bcrypt
+        self.hashed_password = bcrypt.hashpw(raw_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+    def check_password(self, raw_password):
+        """Django 默认密码校验方法，映射到 hashed_password"""
+        import bcrypt
+        return bcrypt.checkpw(raw_password.encode('utf-8'), self.hashed_password.encode('utf-8'))
 
 
 class VerifyCode(BaseModel):
