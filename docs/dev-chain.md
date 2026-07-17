@@ -3,3 +3,4 @@
 | step | 分支名 | 基于分支 | 最新commit | 完成日期 | 状态 |
 |------|--------|----------|------------|----------|------|
 | 01 | feature/apartment-rental/step-01 | main | - | - | 待合并 |
+| 02 | feature/apartment-rental/step-02 | feature/apartment-rental/step-01 | b891750 | 2026-07-17 | 待合并 |
