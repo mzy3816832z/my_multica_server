@@ -2,7 +2,6 @@
 权限类
 """
 from rest_framework import permissions
-from .exceptions import ForbiddenException
 
 
 class IsTenant(permissions.BasePermission):
