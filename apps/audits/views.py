@@ -204,16 +204,16 @@ def audit_reject(request, id):
         audit.reviewer = reviewer
         audit.save(update_fields=['status', 'reject_reason', 'reviewer'])
 
-        # 发送站内信
+        # 发送站内信（核心通知，与审核状态强绑定，保留在事务内）
         _send_reject_message(audit, reject_reason)
 
-        # 发送短信（mock）
-        if landlord and landlord.phone:
-            send_sms(
-                phone=landlord.phone,
-                template_code='REJECT_NOTIFY',
-                params={'reason': reject_reason},
-            )
+    # 短信发送移出事务：避免外部服务异常导致审核状态回滚
+    if landlord and landlord.phone:
+        send_sms(
+            phone=landlord.phone,
+            template_code='REJECT_NOTIFY',
+            params={'reason': reject_reason},
+        )
 
     logger.info(f'[AuditReject] reviewer={reviewer.id}, audit={audit.id}, type={audit.type}')
 
