@@ -1,12 +1,14 @@
 """
-房源模块视图：公共房源列表与详情、商家发布房源接口
+房源模块视图：公共房源列表与详情、商家发布/管理房源接口
 """
+import copy
 import logging
 from django.db import transaction
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from drf_spectacular.utils import extend_schema
 
+from django.utils import timezone
 from core.response import unified_response, ErrorCode
 from core.exceptions import BusinessException, NotFoundException
 from core.permissions import IsLandlord
@@ -18,6 +20,11 @@ from apps.apartments.serializers import (
     ApartmentListItemSerializer,
     ApartmentDetailSerializer,
     RoomTypeDetailSerializer,
+    ApartmentUpdateSerializer,
+    MerchantApartmentListSerializer,
+    MerchantApartmentDetailSerializer,
+    MerchantApartmentUpdateResponseSerializer,
+    MerchantApartmentDeleteResponseSerializer,
 )
 from apps.audits.models import AuditRecord
 
@@ -345,3 +352,288 @@ def _build_apartment_snapshot(apartment):
         'contact_phone': apartment.contact_phone,
         'room_types': room_types_data,
     }
+
+
+# ============================================================
+# 商家已上架房源管理接口（新增）
+# ============================================================
+
+@extend_schema(
+    request=None,
+    responses={200: MerchantApartmentListSerializer(many=True)},
+    summary='商家已上架房源列表',
+    description='返回当前登录商家所有已上架（published）的房源列表，支持分页。',
+    tags=['商家房源'],
+    parameters=[
+        {'name': 'page', 'in': 'query', 'schema': {'type': 'integer'}, 'description': '页码，默认 1'},
+        {'name': 'page_size', 'in': 'query', 'schema': {'type': 'integer'}, 'description': '每页条数，默认 10，最大 100'},
+    ],
+)
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsLandlord])
+def merchant_apartment_list(request):
+    """
+    GET /api/v1/merchant/apartments
+    商家已上架房源列表
+    """
+    landlord = request.user
+    queryset = Apartment.objects.filter(
+        landlord=landlord,
+        status='published',
+    ).order_by('-updated_at')
+
+    paginator = StandardPagination()
+    page = paginator.paginate_queryset(queryset, request)
+    serializer = MerchantApartmentListSerializer(page, many=True)
+    return paginator.get_paginated_response(serializer.data)
+
+
+@extend_schema(
+    request=None,
+    responses={200: MerchantApartmentDetailSerializer},
+    summary='商家自有房源详情',
+    description='获取当前商家指定房源的完整详情，含房型、租金方案及待审核状态。',
+    tags=['商家房源'],
+    parameters=[
+        {'name': 'id', 'in': 'path', 'schema': {'type': 'integer'}, 'description': '公寓 ID'},
+    ],
+)
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsLandlord])
+def merchant_apartment_detail(request, id):
+    """
+    GET /api/v1/merchant/apartments/{id}
+    商家自有房源详情
+    """
+    landlord = request.user
+    try:
+        apartment = Apartment.objects.get(id=id, landlord=landlord)
+    except Apartment.DoesNotExist:
+        raise NotFoundException('房源不存在')
+
+    serializer = MerchantApartmentDetailSerializer(apartment)
+    return unified_response(data=serializer.data)
+
+
+@extend_schema(
+    request=ApartmentUpdateSerializer,
+    responses={200: MerchantApartmentUpdateResponseSerializer},
+    summary='商家编辑房源',
+    description=(
+        '编辑商家自有房源。若 name、district_id、street_id、detail_address '
+        '任一字段变化，则生成 change_review 审核单，原房源仍 published；'
+        '否则直接更新房源及关联房型。'
+    ),
+    tags=['商家房源'],
+    parameters=[
+        {'name': 'id', 'in': 'path', 'schema': {'type': 'integer'}, 'description': '公寓 ID'},
+    ],
+)
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated, IsLandlord])
+def merchant_apartment_update(request, id):
+    """
+    PUT /api/v1/merchant/apartments/{id}
+    商家编辑房源
+    """
+    landlord = request.user
+    try:
+        apartment = Apartment.objects.get(id=id, landlord=landlord)
+    except Apartment.DoesNotExist:
+        raise NotFoundException('房源不存在')
+
+    serializer = ApartmentUpdateSerializer(data=request.data)
+    if not serializer.is_valid():
+        first_msg = _extract_first_error(serializer.errors)
+        raise BusinessException(first_msg, code=ErrorCode.BUSINESS_ERROR)
+
+    data = serializer.validated_data
+
+    # 判断关键字段是否变化
+    KEY_FIELDS = ['name', 'district_id', 'street_id', 'detail_address']
+    key_changed = False
+    for field in KEY_FIELDS:
+        if field in data:
+            current_val = getattr(apartment, field)
+            if current_val != data[field]:
+                key_changed = True
+                break
+
+    # 构建原房源快照（用于审核记录）
+    original_data = _build_apartment_snapshot(apartment)
+
+    with transaction.atomic():
+        if key_changed:
+            # 生成变更审核单，原房源保持 published
+            submitted_data = copy.deepcopy(original_data)
+            # 将变更应用到 submitted_data 中
+            for field in data:
+                if field == 'room_types':
+                    submitted_data['room_types'] = _build_room_types_from_data(data['room_types'])
+                elif field in KEY_FIELDS:
+                    submitted_data[field] = data[field]
+                elif field == 'cover_image':
+                    submitted_data['cover_image'] = data[field]
+                elif field == 'description':
+                    submitted_data['description'] = data[field]
+                elif field == 'contact_phone':
+                    submitted_data['contact_phone'] = data[field]
+
+            changed_fields = [f for f in KEY_FIELDS if f in data and getattr(apartment, f) != data[f]]
+
+            audit = AuditRecord.objects.create(
+                apartment=apartment,
+                type='change_review',
+                status='pending',
+                submitted_data=submitted_data,
+                original_data=original_data,
+                changed_fields=changed_fields,
+            )
+
+            logger.info(f'[UpdateApartment] change_review created, '
+                        f'landlord={landlord.id}, apartment={apartment.id}, audit={audit.id}')
+
+            return unified_response(
+                data={
+                    'apartment_id': apartment.id,
+                    'audit_id': audit.id,
+                    'updated': False,
+                },
+                code=ErrorCode.SUCCESS,
+            )
+        else:
+            # 直接更新房源
+            for field in ['name', 'cover_image', 'description', 'contact_phone']:
+                if field in data:
+                    setattr(apartment, field, data[field])
+
+            if 'district_id' in data:
+                apartment.district_id = data['district_id']
+            if 'street_id' in data:
+                apartment.street_id = data['street_id']
+            if 'detail_address' in data:
+                apartment.detail_address = data['detail_address']
+
+            apartment.save()
+
+            # 若传了房型数据，全量替换
+            if 'room_types' in data:
+                # 软删除原有房型（级联软删除租金方案）
+                for rt in apartment.room_types.all():
+                    rt.delete()
+
+                global_min_rent = None
+                for rt_data in data['room_types']:
+                    room_type = RoomType.objects.create(
+                        apartment=apartment,
+                        name=rt_data['name'],
+                        images=rt_data['images'],
+                        facilities=rt_data.get('facilities', []),
+                        layout_type=rt_data['layout_type'],
+                        window_type=rt_data['window_type'],
+                        orientation=rt_data['orientation'],
+                        floor=rt_data['floor'],
+                        sort=rt_data.get('sort', 0),
+                    )
+                    for rp_data in rt_data['rental_plans']:
+                        RentalPlan.objects.create(
+                            room_type=room_type,
+                            lease_term=rp_data['lease_term'],
+                            monthly_rent=rp_data['monthly_rent'],
+                            payment_method=rp_data['payment_method'],
+                        )
+                        if global_min_rent is None or rp_data['monthly_rent'] < global_min_rent:
+                            global_min_rent = rp_data['monthly_rent']
+
+                if global_min_rent is not None:
+                    apartment.min_monthly_rent = global_min_rent
+                    apartment.save(update_fields=['min_monthly_rent'])
+
+            logger.info(f'[UpdateApartment] direct update, '
+                        f'landlord={landlord.id}, apartment={apartment.id}')
+
+            return unified_response(
+                data={
+                    'apartment_id': apartment.id,
+                    'audit_id': None,
+                    'updated': True,
+                },
+                code=ErrorCode.SUCCESS,
+            )
+
+
+@extend_schema(
+    request=None,
+    responses={200: MerchantApartmentDeleteResponseSerializer},
+    summary='商家删除房源',
+    description='逻辑删除商家自有房源，并同步软删除关联的未批准（pending）审核单。',
+    tags=['商家房源'],
+    parameters=[
+        {'name': 'id', 'in': 'path', 'schema': {'type': 'integer'}, 'description': '公寓 ID'},
+    ],
+)
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated, IsLandlord])
+def merchant_apartment_delete(request, id):
+    """
+    DELETE /api/v1/merchant/apartments/{id}
+    商家删除房源
+    """
+    landlord = request.user
+    try:
+        apartment = Apartment.objects.get(id=id, landlord=landlord)
+    except Apartment.DoesNotExist:
+        raise NotFoundException('房源不存在')
+
+    with transaction.atomic():
+        # 软删除关联的未批准审核单
+        apartment.audit_records.filter(
+            status='pending',
+            deleted_at__isnull=True,
+        ).update(deleted_at=timezone.now())
+
+        # 软删除关联房型（级联软删除租金方案）
+        for rt in apartment.room_types.all():
+            rt.delete()
+
+        # 软删除房源
+        apartment.deleted_at = timezone.now()
+        apartment.save(update_fields=['deleted_at'])
+
+    logger.info(f'[DeleteApartment] landlord={landlord.id}, apartment={id}')
+
+    return unified_response(
+        data={
+            'apartment_id': id,
+            'deleted': True,
+        },
+        code=ErrorCode.SUCCESS,
+    )
+
+
+def _build_room_types_from_data(room_types_data):
+    """
+    从请求数据构建房型快照列表
+    """
+    result = []
+    for rt_data in room_types_data:
+        plans = []
+        for rp_data in rt_data['rental_plans']:
+            plans.append({
+                'lease_term': rp_data['lease_term'],
+                'monthly_rent': rp_data['monthly_rent'],
+                'payment_method': rp_data['payment_method'],
+            })
+        result.append({
+            'name': rt_data['name'],
+            'images': rt_data['images'],
+            'facilities': rt_data.get('facilities', []),
+            'layout_type': rt_data['layout_type'],
+            'window_type': rt_data['window_type'],
+            'orientation': rt_data['orientation'],
+            'floor': rt_data['floor'],
+            'sort': rt_data.get('sort', 0),
+            'rental_plans': plans,
+        })
+    return result
+

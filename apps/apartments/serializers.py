@@ -99,6 +99,130 @@ class ApartmentCreateSerializer(serializers.Serializer):
         return attrs
 
 
+class ApartmentUpdateSerializer(serializers.Serializer):
+    """公寓编辑请求序列化器"""
+    name = serializers.CharField(
+        max_length=50,
+        min_length=2,
+        required=False,
+        help_text='公寓名称（2-50 字）',
+    )
+    cover_image = serializers.URLField(required=False, help_text='公寓总览图 URL')
+    description = serializers.CharField(
+        max_length=500,
+        required=False,
+        help_text='公寓描述（≤500 字）',
+    )
+    district_id = serializers.IntegerField(required=False, help_text='行政区 ID')
+    street_id = serializers.IntegerField(required=False, help_text='街道/镇 ID')
+    detail_address = serializers.CharField(
+        max_length=200,
+        required=False,
+        help_text='详细门牌号',
+    )
+    contact_phone = serializers.CharField(
+        max_length=11,
+        min_length=11,
+        required=False,
+        help_text='联系电话（11 位手机号）',
+    )
+    room_types = RoomTypeSerializer(
+        many=True,
+        required=False,
+        help_text='房型列表',
+    )
+
+    def validate(self, attrs):
+        """额外校验：行政区与街道有效性（仅当同时传入时校验）"""
+        from apps.districts.models import District
+
+        district_id = attrs.get('district_id')
+        street_id = attrs.get('street_id')
+
+        if district_id is not None and street_id is not None:
+            try:
+                district = District.objects.get(id=district_id, level=1)
+            except District.DoesNotExist:
+                raise serializers.ValidationError({'district_id': '无效的行政区 ID'})
+
+            try:
+                District.objects.get(id=street_id, level=2, parent=district)
+            except District.DoesNotExist:
+                raise serializers.ValidationError({'street_id': '无效的街道/镇 ID，或不在该行政区内'})
+
+        return attrs
+
+
+class MerchantApartmentListSerializer(serializers.Serializer):
+    """商家已上架房源列表序列化器"""
+    id = serializers.IntegerField(help_text='公寓 ID')
+    name = serializers.CharField(max_length=50, help_text='公寓名称')
+    cover_image = serializers.CharField(max_length=500, help_text='公寓总览图 URL')
+    district_name = serializers.SerializerMethodField(help_text='行政区名称')
+    street_name = serializers.SerializerMethodField(help_text='街道/镇名称')
+    detail_address = serializers.CharField(max_length=200, help_text='详细门牌号')
+    min_monthly_rent = serializers.IntegerField(help_text='最低月租金（元）')
+    status = serializers.CharField(max_length=30, help_text='房源状态')
+    created_at = serializers.DateTimeField(help_text='创建时间')
+    updated_at = serializers.DateTimeField(help_text='更新时间')
+
+    def get_district_name(self, obj):
+        return obj.district.name if obj.district else None
+
+    def get_street_name(self, obj):
+        return obj.street.name if obj.street else None
+
+
+class MerchantApartmentDetailSerializer(serializers.Serializer):
+    """商家自有房源详情序列化器"""
+    id = serializers.IntegerField(help_text='公寓 ID')
+    name = serializers.CharField(max_length=50, help_text='公寓名称')
+    cover_image = serializers.CharField(max_length=500, help_text='公寓总览图 URL')
+    description = serializers.CharField(help_text='公寓描述')
+    district_id = serializers.IntegerField(help_text='行政区 ID')
+    district_name = serializers.SerializerMethodField(help_text='行政区名称')
+    street_id = serializers.IntegerField(help_text='街道/镇 ID')
+    street_name = serializers.SerializerMethodField(help_text='街道/镇名称')
+    detail_address = serializers.CharField(max_length=200, help_text='详细门牌号')
+    contact_phone = serializers.CharField(max_length=11, help_text='联系电话')
+    min_monthly_rent = serializers.IntegerField(help_text='最低月租金（元）')
+    status = serializers.CharField(max_length=30, help_text='房源状态')
+    created_at = serializers.DateTimeField(help_text='创建时间')
+    updated_at = serializers.DateTimeField(help_text='更新时间')
+    room_types = serializers.SerializerMethodField(help_text='房型列表')
+    pending_audit = serializers.SerializerMethodField(help_text='是否有待审核变更')
+
+    def get_district_name(self, obj):
+        return obj.district.name if obj.district else None
+
+    def get_street_name(self, obj):
+        return obj.street.name if obj.street else None
+
+    def get_room_types(self, obj):
+        room_types = obj.room_types.all().order_by('sort', 'id')
+        return RoomTypeListSerializer(room_types, many=True).data
+
+    def get_pending_audit(self, obj):
+        return obj.audit_records.filter(
+            type='change_review',
+            status='pending',
+            deleted_at__isnull=True,
+        ).exists()
+
+
+class MerchantApartmentUpdateResponseSerializer(serializers.Serializer):
+    """商家房源编辑响应序列化器"""
+    apartment_id = serializers.IntegerField(help_text='公寓 ID')
+    audit_id = serializers.IntegerField(help_text='审核记录 ID（直接更新时为 null）', allow_null=True)
+    updated = serializers.BooleanField(help_text='是否直接更新')
+
+
+class MerchantApartmentDeleteResponseSerializer(serializers.Serializer):
+    """商家房源删除响应序列化器"""
+    apartment_id = serializers.IntegerField(help_text='公寓 ID')
+    deleted = serializers.BooleanField(help_text='是否删除成功')
+
+
 class ApartmentResponseSerializer(serializers.Serializer):
     """公寓发布响应序列化器"""
     apartment_id = serializers.IntegerField(help_text='公寓 ID')
