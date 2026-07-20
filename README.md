@@ -30,7 +30,7 @@ docker-compose up -d
 ### 4. 本地开发启动
 ```bash
 python manage.py migrate
-python manage.py runserver 0.0.0.0:8000
+python manage.py runserver 127.0.0.1:8000
 ```
 
 ## 接口文档
