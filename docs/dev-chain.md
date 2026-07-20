@@ -12,3 +12,4 @@
 | 09 | feature/apartment-rental/step-09 | feature/apartment-rental/step-08 | cf18a7e | 2026-07-20 | 待合并 |
 | 11 | feature/apartment-rental/step-11 | feature/apartment-rental/step-10 | b5786ad | 2026-07-20 | 待合并 |
 | 12 | feature/apartment-rental/step-12 | feature/apartment-rental/step-11 | ff9ac83 | 2026-07-20 | 待合并 |
+| 13 | feature/apartment-rental/step-13 | feature/apartment-rental/step-12 | ddc09b4 | 2026-07-20 | 待合并 |
