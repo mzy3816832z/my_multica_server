@@ -50,7 +50,7 @@ def audit_list(request):
     GET /api/v1/admin/audits
     审核单列表（管理员）
     """
-    queryset = AuditRecord.objects.filter(deleted_at__isnull=True).order_by('-created_at')
+    queryset = AuditRecord.objects.filter(deleted_at__isnull=True).order_by('-created_at', '-id')
 
     # 按类型筛选
     audit_type = request.query_params.get('type')

@@ -106,7 +106,7 @@ def my_favorites(request):
     # 查询当前用户有效收藏，关联公寓，预加载 district / street 避免 N+1
     queryset = Favorite.objects.filter(user=user).select_related(
         'apartment', 'apartment__district', 'apartment__street'
-    ).order_by('-created_at')
+    ).order_by('-created_at', '-id')
 
     # 分页
     paginator = StandardPagination()
