@@ -1,5 +1,6 @@
 """
 公共房源列表与详情接口单元测试
+商家已上架房源管理接口单元测试
 """
 from django.test import TestCase
 from rest_framework.test import APIClient
@@ -9,6 +10,7 @@ from apps.users.models import User
 from apps.districts.models import District
 from apps.apartments.models import Apartment, RoomType, RentalPlan
 from apps.favorites.models import Favorite
+from apps.audits.models import AuditRecord
 
 
 class PublicApartmentListTests(TestCase):
@@ -484,3 +486,453 @@ class RoomTypeDetailTests(TestCase):
         response = self.client.get(f'/api/v1/apartments/room-types/{room.id}/')
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.json()['code'], 404001)
+
+
+# ============================================================
+# 商家已上架房源管理接口单元测试
+# ============================================================
+
+class MerchantApartmentListTests(TestCase):
+    """商家已上架房源列表接口测试"""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.url = '/api/v1/merchant/apartments/list/'
+
+        # 创建行政区与街道
+        self.district = District.objects.create(name='浦东新区', level=1, code='310115', sort=0)
+        self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
+
+        # 创建商家
+        self.landlord = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
+        self.landlord_token = self._get_token(self.landlord)
+
+        # 创建另一个商家
+        self.other_landlord = User.objects.create(phone='13800138001', hashed_password='fake', role='landlord', is_active=True)
+
+        # 创建已上架房源 A
+        self.apartment_a = Apartment.objects.create(
+            landlord=self.landlord,
+            name='陆家嘴精品公寓',
+            cover_image='https://example.com/a.jpg',
+            description='描述A',
+            district=self.district,
+            street=self.street,
+            detail_address='测试路1号',
+            contact_phone='13800138000',
+            status='published',
+            min_monthly_rent=3000,
+        )
+        self.room_a = RoomType.objects.create(
+            apartment=self.apartment_a,
+            name='标准单间',
+            images=['https://example.com/ra.jpg'],
+            facilities=['air_conditioner'],
+            layout_type='studio',
+            window_type='external',
+            orientation='south',
+            floor=5,
+            sort=0,
+        )
+        RentalPlan.objects.create(room_type=self.room_a, lease_term='1_month', monthly_rent=3000, payment_method='pay_1_deposit_1')
+
+        # 创建已上架房源 B（另一个商家）
+        self.apartment_b = Apartment.objects.create(
+            landlord=self.other_landlord,
+            name='他人公寓',
+            cover_image='https://example.com/b.jpg',
+            description='描述B',
+            district=self.district,
+            street=self.street,
+            detail_address='测试路2号',
+            contact_phone='13800138001',
+            status='published',
+            min_monthly_rent=5000,
+        )
+
+        # 创建未上架房源（同一商家）
+        self.apartment_c = Apartment.objects.create(
+            landlord=self.landlord,
+            name='待审核房源',
+            cover_image='https://example.com/c.jpg',
+            description='描述C',
+            district=self.district,
+            street=self.street,
+            detail_address='测试路3号',
+            contact_phone='13800138002',
+            status='pending_first_review',
+            min_monthly_rent=2000,
+        )
+
+    def _get_token(self, user):
+        refresh = RefreshToken.for_user(user)
+        refresh['role'] = user.role
+        refresh['phone'] = user.phone
+        refresh['username'] = user.username
+        return str(refresh.access_token)
+
+    def test_list_only_own_published(self):
+        """列表仅展示当前商家已上架房源"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()['data']
+        self.assertEqual(data['total'], 1)
+        self.assertEqual(data['items'][0]['id'], self.apartment_a.id)
+
+    def test_list_unauthorized(self):
+        """未登录返回 401"""
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 401)
+
+    def test_list_not_landlord(self):
+        """非商家角色返回 403"""
+        tenant = User.objects.create(phone='13900139000', hashed_password='fake', role='tenant', is_active=True)
+        token = self._get_token(tenant)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 403)
+
+    def test_list_pagination(self):
+        """分页参数生效"""
+        # 再创建几个已上架房源
+        for i in range(3):
+            Apartment.objects.create(
+                landlord=self.landlord,
+                name=f'公寓{i}',
+                cover_image='https://example.com/x.jpg',
+                description='描述',
+                district=self.district,
+                street=self.street,
+                detail_address=f'测试路{i}号',
+                contact_phone='13800138000',
+                status='published',
+                min_monthly_rent=2000,
+            )
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
+        response = self.client.get(self.url, {'page': 1, 'page_size': 2})
+        data = response.json()['data']
+        self.assertEqual(len(data['items']), 2)
+        self.assertEqual(data['total'], 4)
+
+
+class MerchantApartmentDetailTests(TestCase):
+    """商家自有房源详情接口测试"""
+
+    def setUp(self):
+        self.client = APIClient()
+
+        self.district = District.objects.create(name='浦东新区', level=1, code='310115', sort=0)
+        self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
+
+        self.landlord = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
+        self.landlord_token = self._get_token(self.landlord)
+
+        self.other_landlord = User.objects.create(phone='13800138001', hashed_password='fake', role='landlord', is_active=True)
+
+        self.apartment = Apartment.objects.create(
+            landlord=self.landlord,
+            name='测试公寓',
+            cover_image='https://example.com/cover.jpg',
+            description='测试描述',
+            district=self.district,
+            street=self.street,
+            detail_address='测试路1号',
+            contact_phone='13800138000',
+            status='published',
+            min_monthly_rent=3000,
+        )
+        self.room = RoomType.objects.create(
+            apartment=self.apartment,
+            name='标准单间',
+            images=['https://example.com/room.jpg'],
+            facilities=['air_conditioner'],
+            layout_type='studio',
+            window_type='external',
+            orientation='south',
+            floor=5,
+            sort=0,
+        )
+        RentalPlan.objects.create(room_type=self.room, lease_term='1_month', monthly_rent=3000, payment_method='pay_1_deposit_1')
+
+    def _get_token(self, user):
+        refresh = RefreshToken.for_user(user)
+        refresh['role'] = user.role
+        refresh['phone'] = user.phone
+        refresh['username'] = user.username
+        return str(refresh.access_token)
+
+    def test_detail_success(self):
+        """获取自有房源详情成功"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
+        response = self.client.get(f'/api/v1/merchant/apartments/{self.apartment.id}/')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()['data']
+        self.assertEqual(data['id'], self.apartment.id)
+        self.assertEqual(data['name'], '测试公寓')
+        self.assertEqual(data['district_name'], '浦东新区')
+        self.assertEqual(data['street_name'], '陆家嘴街道')
+        self.assertEqual(data['pending_audit'], False)
+        self.assertIn('room_types', data)
+
+    def test_detail_not_own(self):
+        """获取他人房源详情返回 404"""
+        token = self._get_token(self.other_landlord)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+        response = self.client.get(f'/api/v1/merchant/apartments/{self.apartment.id}/')
+        self.assertEqual(response.status_code, 404)
+
+    def test_detail_not_found(self):
+        """获取不存在的房源返回 404"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
+        response = self.client.get('/api/v1/merchant/apartments/99999/')
+        self.assertEqual(response.status_code, 404)
+
+    def test_detail_pending_audit(self):
+        """有待审核变更时 pending_audit 为 True"""
+        AuditRecord.objects.create(
+            apartment=self.apartment,
+            type='change_review',
+            status='pending',
+            submitted_data={},
+            changed_fields=['name'],
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
+        response = self.client.get(f'/api/v1/merchant/apartments/{self.apartment.id}/')
+        data = response.json()['data']
+        self.assertEqual(data['pending_audit'], True)
+
+
+class MerchantApartmentUpdateTests(TestCase):
+    """商家编辑房源接口测试"""
+
+    def setUp(self):
+        self.client = APIClient()
+
+        self.district = District.objects.create(name='浦东新区', level=1, code='310115', sort=0)
+        self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
+        self.district2 = District.objects.create(name='黄浦区', level=1, code='310101', sort=0)
+        self.street2 = District.objects.create(name='南京东路街道', level=2, code='310101001', parent=self.district2, sort=0)
+
+        self.landlord = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
+        self.landlord_token = self._get_token(self.landlord)
+
+        self.other_landlord = User.objects.create(phone='13800138001', hashed_password='fake', role='landlord', is_active=True)
+
+        self.apartment = Apartment.objects.create(
+            landlord=self.landlord,
+            name='测试公寓',
+            cover_image='https://example.com/cover.jpg',
+            description='测试描述',
+            district=self.district,
+            street=self.street,
+            detail_address='测试路1号',
+            contact_phone='13800138000',
+            status='published',
+            min_monthly_rent=3000,
+        )
+        self.room = RoomType.objects.create(
+            apartment=self.apartment,
+            name='标准单间',
+            images=['https://example.com/room.jpg'],
+            facilities=['air_conditioner'],
+            layout_type='studio',
+            window_type='external',
+            orientation='south',
+            floor=5,
+            sort=0,
+        )
+        RentalPlan.objects.create(room_type=self.room, lease_term='1_month', monthly_rent=3000, payment_method='pay_1_deposit_1')
+
+    def _get_token(self, user):
+        refresh = RefreshToken.for_user(user)
+        refresh['role'] = user.role
+        refresh['phone'] = user.phone
+        refresh['username'] = user.username
+        return str(refresh.access_token)
+
+    def test_update_direct_no_key_change(self):
+        """非关键字段变更直接更新"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
+        payload = {
+            'cover_image': 'https://example.com/new_cover.jpg',
+            'description': '新描述',
+            'contact_phone': '13900139000',
+        }
+        response = self.client.put(f'/api/v1/merchant/apartments/{self.apartment.id}/update/', payload, format='json')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()['data']
+        self.assertEqual(data['updated'], True)
+        self.assertIsNone(data['audit_id'])
+
+        self.apartment.refresh_from_db()
+        self.assertEqual(self.apartment.cover_image, 'https://example.com/new_cover.jpg')
+        self.assertEqual(self.apartment.description, '新描述')
+        self.assertEqual(self.apartment.contact_phone, '13900139000')
+        self.assertEqual(self.apartment.status, 'published')
+
+    def test_update_name_triggers_audit(self):
+        """变更名称触发 change_review 审核"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
+        payload = {'name': '新公寓名称'}
+        response = self.client.put(f'/api/v1/merchant/apartments/{self.apartment.id}/update/', payload, format='json')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()['data']
+        self.assertEqual(data['updated'], False)
+        self.assertIsNotNone(data['audit_id'])
+
+        # 原房源仍 published
+        self.apartment.refresh_from_db()
+        self.assertEqual(self.apartment.status, 'published')
+        self.assertEqual(self.apartment.name, '测试公寓')
+
+        # 审核记录存在
+        audit = AuditRecord.objects.get(id=data['audit_id'])
+        self.assertEqual(audit.type, 'change_review')
+        self.assertEqual(audit.status, 'pending')
+        self.assertEqual(audit.changed_fields, ['name'])
+        self.assertIsNotNone(audit.original_data)
+        self.assertIsNotNone(audit.submitted_data)
+
+    def test_update_district_triggers_audit(self):
+        """变更行政区触发 change_review 审核"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
+        payload = {'district_id': self.district2.id, 'street_id': self.street2.id}
+        response = self.client.put(f'/api/v1/merchant/apartments/{self.apartment.id}/update/', payload, format='json')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()['data']
+        self.assertEqual(data['updated'], False)
+
+        self.apartment.refresh_from_db()
+        self.assertEqual(self.apartment.district_id, self.district.id)
+        self.assertEqual(self.apartment.status, 'published')
+
+    def test_update_detail_address_triggers_audit(self):
+        """变更详细地址触发 change_review 审核"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
+        payload = {'detail_address': '新地址123号'}
+        response = self.client.put(f'/api/v1/merchant/apartments/{self.apartment.id}/update/', payload, format='json')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()['data']
+        self.assertEqual(data['updated'], False)
+
+        self.apartment.refresh_from_db()
+        self.assertEqual(self.apartment.detail_address, '测试路1号')
+
+    def test_update_with_room_types_direct(self):
+        """直接更新时支持全量替换房型"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
+        payload = {
+            'cover_image': 'https://example.com/new.jpg',
+            'room_types': [
+                {
+                    'name': '豪华单间',
+                    'images': ['https://example.com/new_room.jpg'],
+                    'facilities': ['wifi'],
+                    'layout_type': 'studio',
+                    'window_type': 'external',
+                    'orientation': 'north',
+                    'floor': 3,
+                    'sort': 1,
+                    'rental_plans': [
+                        {'lease_term': '3_month', 'monthly_rent': 3500, 'payment_method': 'pay_3_deposit_1'},
+                    ],
+                },
+            ],
+        }
+        response = self.client.put(f'/api/v1/merchant/apartments/{self.apartment.id}/update/', payload, format='json')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()['data']
+        self.assertEqual(data['updated'], True)
+
+        self.apartment.refresh_from_db()
+        self.assertEqual(self.apartment.min_monthly_rent, 3500)
+        room_types = list(self.apartment.room_types.all())
+        self.assertEqual(len(room_types), 1)
+        self.assertEqual(room_types[0].name, '豪华单间')
+
+    def test_update_not_own(self):
+        """编辑他人房源返回 404"""
+        token = self._get_token(self.other_landlord)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+        response = self.client.put(f'/api/v1/merchant/apartments/{self.apartment.id}/update/', {'name': '新名称'}, format='json')
+        self.assertEqual(response.status_code, 404)
+
+    def test_update_invalid_district(self):
+        """传入无效行政区返回 400"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
+        payload = {'district_id': 99999, 'street_id': 99999}
+        response = self.client.put(f'/api/v1/merchant/apartments/{self.apartment.id}/update/', payload, format='json')
+        self.assertEqual(response.status_code, 400)
+
+
+class MerchantApartmentDeleteTests(TestCase):
+    """商家删除房源接口测试"""
+
+    def setUp(self):
+        self.client = APIClient()
+
+        self.district = District.objects.create(name='浦东新区', level=1, code='310115', sort=0)
+        self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
+
+        self.landlord = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
+        self.landlord_token = self._get_token(self.landlord)
+
+        self.other_landlord = User.objects.create(phone='13800138001', hashed_password='fake', role='landlord', is_active=True)
+
+        self.apartment = Apartment.objects.create(
+            landlord=self.landlord,
+            name='测试公寓',
+            cover_image='https://example.com/cover.jpg',
+            description='测试描述',
+            district=self.district,
+            street=self.street,
+            detail_address='测试路1号',
+            contact_phone='13800138000',
+            status='published',
+            min_monthly_rent=3000,
+        )
+
+        # 创建未批准审核单
+        self.audit = AuditRecord.objects.create(
+            apartment=self.apartment,
+            type='change_review',
+            status='pending',
+            submitted_data={},
+            changed_fields=['name'],
+        )
+
+    def _get_token(self, user):
+        refresh = RefreshToken.for_user(user)
+        refresh['role'] = user.role
+        refresh['phone'] = user.phone
+        refresh['username'] = user.username
+        return str(refresh.access_token)
+
+    def test_delete_success(self):
+        """删除自有房源成功，并软删除关联审核单"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
+        response = self.client.delete(f'/api/v1/merchant/apartments/{self.apartment.id}/delete/')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()['data']
+        self.assertEqual(data['deleted'], True)
+
+        # 房源已软删除
+        self.assertFalse(Apartment.objects.filter(id=self.apartment.id).exists())
+        self.assertTrue(Apartment.all_objects.filter(id=self.apartment.id).exists())
+
+        # 审核单已软删除
+        self.audit.refresh_from_db()
+        self.assertIsNotNone(self.audit.deleted_at)
+
+    def test_delete_not_own(self):
+        """删除他人房源返回 404"""
+        token = self._get_token(self.other_landlord)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+        response = self.client.delete(f'/api/v1/merchant/apartments/{self.apartment.id}/delete/')
+        self.assertEqual(response.status_code, 404)
+
+    def test_delete_unauthorized(self):
+        """未登录返回 401"""
+        response = self.client.delete(f'/api/v1/merchant/apartments/{self.apartment.id}/delete/')
+        self.assertEqual(response.status_code, 401)
