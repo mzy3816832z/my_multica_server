@@ -1,95 +1,102 @@
 """
-房源发布接口单元测试
+公共房源列表与详情接口单元测试
 """
-import json
 from django.test import TestCase
-from django.urls import reverse
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.users.models import User
 from apps.districts.models import District
 from apps.apartments.models import Apartment, RoomType, RentalPlan
-from apps.audits.models import AuditRecord
+from apps.favorites.models import Favorite
 
 
-class CreateApartmentTests(TestCase):
-    """商家发布房源接口测试"""
+class PublicApartmentListTests(TestCase):
+    """公共房源列表接口测试"""
 
     def setUp(self):
         self.client = APIClient()
-        # 创建行政区（level=1）
-        self.district = District.objects.create(
-            name='浦东新区',
-            level=1,
-            code='310115',
+        self.url = '/api/v1/apartments/'
+
+        # 创建行政区与街道
+        self.district = District.objects.create(name='浦东新区', level=1, code='310115', sort=0)
+        self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
+        self.district2 = District.objects.create(name='黄浦区', level=1, code='310101', sort=0)
+        self.street2 = District.objects.create(name='南京东路街道', level=2, code='310101001', parent=self.district2, sort=0)
+
+        # 创建商家
+        self.landlord = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
+
+        # 创建已上架房源 A（浦东新区）
+        self.apartment_a = Apartment.objects.create(
+            landlord=self.landlord,
+            name='陆家嘴精品公寓',
+            cover_image='https://example.com/a.jpg',
+            description='描述A',
+            district=self.district,
+            street=self.street,
+            detail_address='测试路1号',
+            contact_phone='13800138000',
+            status='published',
+            min_monthly_rent=3000,
+        )
+        self.room_a = RoomType.objects.create(
+            apartment=self.apartment_a,
+            name='标准单间',
+            images=['https://example.com/ra.jpg'],
+            facilities=['air_conditioner'],
+            layout_type='studio',
+            window_type='external',
+            orientation='south',
+            floor=5,
             sort=0,
         )
-        # 创建街道（level=2）
-        self.street = District.objects.create(
-            name='陆家嘴街道',
-            level=2,
-            code='310115001',
-            parent=self.district,
+        RentalPlan.objects.create(room_type=self.room_a, lease_term='1_month', monthly_rent=3000, payment_method='pay_1_deposit_1')
+        RentalPlan.objects.create(room_type=self.room_a, lease_term='6_month', monthly_rent=2800, payment_method='pay_3_deposit_1')
+
+        # 创建已上架房源 B（黄浦区，价格更高）
+        self.apartment_b = Apartment.objects.create(
+            landlord=self.landlord,
+            name='南京东路豪华公寓',
+            cover_image='https://example.com/b.jpg',
+            description='描述B',
+            district=self.district2,
+            street=self.street2,
+            detail_address='测试路2号',
+            contact_phone='13800138001',
+            status='published',
+            min_monthly_rent=5000,
+        )
+        self.room_b = RoomType.objects.create(
+            apartment=self.apartment_b,
+            name='豪华套房',
+            images=['https://example.com/rb.jpg'],
+            facilities=['air_conditioner', 'washing_machine'],
+            layout_type='two_bedroom',
+            window_type='external',
+            orientation='east',
+            floor=8,
             sort=0,
         )
-        # 创建商家用户
-        self.landlord = User.objects.create(
-            phone='13800138000',
-            hashed_password='fake_hash',
-            role='landlord',
-            is_active=True,
-        )
-        # 创建租客用户
-        self.tenant = User.objects.create(
-            phone='13800138001',
-            hashed_password='fake_hash',
-            role='tenant',
-            is_active=True,
-        )
-        # 创建无角色用户
-        self.no_role_user = User.objects.create(
-            phone='13800138002',
-            hashed_password='fake_hash',
-            role='',
-            is_active=True,
+        RentalPlan.objects.create(room_type=self.room_b, lease_term='1_year', monthly_rent=5000, payment_method='pay_3_deposit_1')
+
+        # 创建未上架房源（不应出现在列表）
+        self.apartment_c = Apartment.objects.create(
+            landlord=self.landlord,
+            name='待审核房源',
+            cover_image='https://example.com/c.jpg',
+            description='描述C',
+            district=self.district,
+            street=self.street,
+            detail_address='测试路3号',
+            contact_phone='13800138002',
+            status='pending_first_review',
+            min_monthly_rent=2000,
         )
 
-        # 生成 JWT token
-        self.landlord_token = self._get_token(self.landlord)
+        # 创建租客用户（用于收藏测试）
+        self.tenant = User.objects.create(phone='13900139000', hashed_password='fake', role='tenant', is_active=True)
         self.tenant_token = self._get_token(self.tenant)
-        self.no_role_token = self._get_token(self.no_role_user)
-
-        self.url = '/api/v1/merchant/apartments/'
-
-        self.valid_payload = {
-            'name': '测试公寓',
-            'cover_image': 'https://example.com/cover.jpg',
-            'description': '这是一套测试公寓，描述不超过500字。',
-            'district_id': self.district.id,
-            'street_id': self.street.id,
-            'detail_address': '测试路 123 号',
-            'contact_phone': '13800138000',
-            'room_types': [
-                {
-                    'name': '标准单间',
-                    'images': [
-                        'https://example.com/room1.jpg',
-                        'https://example.com/room2.jpg',
-                    ],
-                    'facilities': ['air_conditioner', 'washing_machine'],
-                    'layout_type': 'studio',
-                    'window_type': 'external',
-                    'orientation': 'south',
-                    'floor': 5,
-                    'sort': 0,
-                    'rental_plans': [
-                        {'lease_term': '1_month', 'monthly_rent': 3000, 'payment_method': 'pay_1_deposit_1'},
-                        {'lease_term': '6_month', 'monthly_rent': 2800, 'payment_method': 'pay_3_deposit_1'},
-                    ],
-                }
-            ],
-        }
 
     def _get_token(self, user):
         refresh = RefreshToken.for_user(user)
@@ -98,311 +105,382 @@ class CreateApartmentTests(TestCase):
         refresh['username'] = user.username
         return str(refresh.access_token)
 
-    def test_create_apartment_success(self):
-        """合法请求：商家发布房源成功，返回 apartment_id 与 audit_id"""
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
-        response = self.client.post(self.url, data=self.valid_payload, format='json')
-
+    def test_list_only_published(self):
+        """列表仅展示已上架房源"""
+        response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data['code'], 0)
-        self.assertIn('apartment_id', data['data'])
-        self.assertIn('audit_id', data['data'])
+        data = response.json()['data']
+        self.assertEqual(data['total'], 2)
+        ids = [item['id'] for item in data['items']]
+        self.assertIn(self.apartment_a.id, ids)
+        self.assertIn(self.apartment_b.id, ids)
+        self.assertNotIn(self.apartment_c.id, ids)
 
-        apartment_id = data['data']['apartment_id']
-        audit_id = data['data']['audit_id']
+    def test_list_order_by_updated_at_desc(self):
+        """列表按审核通过时间（updated_at）倒序"""
+        response = self.client.get(self.url)
+        data = response.json()['data']
+        items = data['items']
+        # apartment_b 后创建，updated_at 更晚，应排在前面
+        self.assertEqual(items[0]['id'], self.apartment_b.id)
+        self.assertEqual(items[1]['id'], self.apartment_a.id)
 
-        # 校验公寓状态
-        apartment = Apartment.objects.get(id=apartment_id)
-        self.assertEqual(apartment.status, 'pending_first_review')
-        self.assertEqual(apartment.landlord_id, self.landlord.id)
-        self.assertEqual(apartment.min_monthly_rent, 2800)  # 最低租金
+    def test_list_pagination(self):
+        """分页参数生效"""
+        response = self.client.get(self.url, {'page': 1, 'page_size': 1})
+        data = response.json()['data']
+        self.assertEqual(len(data['items']), 1)
+        self.assertEqual(data['total'], 2)
+        self.assertEqual(data['page'], 1)
+        self.assertEqual(data['page_size'], 1)
 
-        # 校验房型
-        room_types = RoomType.objects.filter(apartment=apartment)
-        self.assertEqual(room_types.count(), 1)
-        rt = room_types.first()
-        self.assertEqual(rt.name, '标准单间')
-        self.assertEqual(len(rt.images), 2)
+    def test_list_filter_by_keyword(self):
+        """关键词筛选"""
+        response = self.client.get(self.url, {'keyword': '陆家嘴'})
+        data = response.json()['data']
+        self.assertEqual(data['total'], 1)
+        self.assertEqual(data['items'][0]['id'], self.apartment_a.id)
 
-        # 校验租金方案
-        plans = RentalPlan.objects.filter(room_type=rt)
-        self.assertEqual(plans.count(), 2)
+    def test_list_filter_by_district(self):
+        """行政区筛选"""
+        response = self.client.get(self.url, {'district_id': self.district2.id})
+        data = response.json()['data']
+        self.assertEqual(data['total'], 1)
+        self.assertEqual(data['items'][0]['id'], self.apartment_b.id)
 
-        # 校验审核记录
-        audit = AuditRecord.objects.get(id=audit_id)
-        self.assertEqual(audit.type, 'first_review')
-        self.assertEqual(audit.status, 'pending')
-        self.assertIn('room_types', audit.submitted_data)
-        self.assertEqual(audit.apartment_id, apartment_id)
+    def test_list_filter_by_street(self):
+        """街道筛选"""
+        response = self.client.get(self.url, {'street_id': self.street.id})
+        data = response.json()['data']
+        self.assertEqual(data['total'], 1)
+        self.assertEqual(data['items'][0]['id'], self.apartment_a.id)
 
-    def test_create_apartment_multiple_room_types(self):
-        """多房型发布成功"""
-        payload = self.valid_payload.copy()
-        payload['room_types'] = [
-            {
-                'name': '标准单间',
-                'images': ['https://example.com/room1.jpg'],
-                'facilities': [],
-                'layout_type': 'studio',
-                'window_type': 'external',
-                'orientation': 'south',
-                'floor': 5,
-                'sort': 0,
-                'rental_plans': [
-                    {'lease_term': '1_month', 'monthly_rent': 3000, 'payment_method': 'pay_1_deposit_1'},
-                ],
-            },
-            {
-                'name': '豪华套房',
-                'images': ['https://example.com/room3.jpg'],
-                'facilities': ['air_conditioner'],
-                'layout_type': 'two_bedroom',
-                'window_type': 'external',
-                'orientation': 'east',
-                'floor': 8,
-                'sort': 1,
-                'rental_plans': [
-                    {'lease_term': '1_year', 'monthly_rent': 5000, 'payment_method': 'pay_3_deposit_1'},
-                ],
-            },
-        ]
+    def test_list_filter_by_layout_type(self):
+        """户型筛选"""
+        response = self.client.get(self.url, {'layout_type': 'two_bedroom'})
+        data = response.json()['data']
+        self.assertEqual(data['total'], 1)
+        self.assertEqual(data['items'][0]['id'], self.apartment_b.id)
 
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
-        response = self.client.post(self.url, data=payload, format='json')
+    def test_list_filter_by_lease_term(self):
+        """租期筛选"""
+        response = self.client.get(self.url, {'lease_term': '1_month'})
+        data = response.json()['data']
+        self.assertEqual(data['total'], 1)
+        self.assertEqual(data['items'][0]['id'], self.apartment_a.id)
 
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data['code'], 0)
+    def test_list_filter_by_price_range(self):
+        """价格区间筛选"""
+        response = self.client.get(self.url, {'min_price': 4000, 'max_price': 6000})
+        data = response.json()['data']
+        self.assertEqual(data['total'], 1)
+        self.assertEqual(data['items'][0]['id'], self.apartment_b.id)
 
-        apartment = Apartment.objects.get(id=data['data']['apartment_id'])
-        self.assertEqual(apartment.min_monthly_rent, 3000)  # 最低租金是 3000
-        self.assertEqual(RoomType.objects.filter(apartment=apartment).count(), 2)
+    def test_list_combined_filters(self):
+        """组合筛选条件可叠加"""
+        response = self.client.get(self.url, {
+            'district_id': self.district.id,
+            'layout_type': 'studio',
+            'min_price': 2500,
+        })
+        data = response.json()['data']
+        self.assertEqual(data['total'], 1)
+        self.assertEqual(data['items'][0]['id'], self.apartment_a.id)
 
-    def test_create_apartment_no_room_types(self):
-        """缺少房型：返回 400002"""
-        payload = self.valid_payload.copy()
-        payload['room_types'] = []
+    def test_list_card_fields(self):
+        """列表卡片字段包含最低月租金"""
+        response = self.client.get(self.url)
+        data = response.json()['data']
+        item = data['items'][0]
+        self.assertIn('id', item)
+        self.assertIn('name', item)
+        self.assertIn('cover_image', item)
+        self.assertIn('district_name', item)
+        self.assertIn('street_name', item)
+        self.assertIn('min_monthly_rent', item)
+        self.assertIn('is_favorited', item)
 
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
-        response = self.client.post(self.url, data=payload, format='json')
+    def test_list_anonymous_not_favorited(self):
+        """未登录用户 is_favorited 为 False"""
+        response = self.client.get(self.url)
+        data = response.json()['data']
+        for item in data['items']:
+            self.assertEqual(item['is_favorited'], False)
 
-        self.assertEqual(response.status_code, 400)
-        data = response.json()
-        self.assertEqual(data['code'], 400002)
-
-    def test_create_apartment_missing_room_type_name(self):
-        """房型字段不合法：返回 400002"""
-        payload = self.valid_payload.copy()
-        payload['room_types'] = [
-            {
-                'name': '',
-                'images': [],
-                'layout_type': 'studio',
-                'window_type': 'external',
-                'orientation': 'south',
-                'floor': 5,
-                'rental_plans': [
-                    {'lease_term': '1_month', 'monthly_rent': 3000, 'payment_method': 'pay_1_deposit_1'},
-                ],
-            }
-        ]
-
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
-        response = self.client.post(self.url, data=payload, format='json')
-
-        self.assertEqual(response.status_code, 400)
-        data = response.json()
-        self.assertEqual(data['code'], 400002)
-
-    def test_create_apartment_images_over_limit(self):
-        """房型图片超过 5 张：返回 400002"""
-        payload = self.valid_payload.copy()
-        payload['room_types'] = [
-            {
-                'name': '标准单间',
-                'images': [
-                    'https://example.com/1.jpg',
-                    'https://example.com/2.jpg',
-                    'https://example.com/3.jpg',
-                    'https://example.com/4.jpg',
-                    'https://example.com/5.jpg',
-                    'https://example.com/6.jpg',
-                ],
-                'layout_type': 'studio',
-                'window_type': 'external',
-                'orientation': 'south',
-                'floor': 5,
-                'rental_plans': [
-                    {'lease_term': '1_month', 'monthly_rent': 3000, 'payment_method': 'pay_1_deposit_1'},
-                ],
-            }
-        ]
-
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
-        response = self.client.post(self.url, data=payload, format='json')
-
-        self.assertEqual(response.status_code, 400)
-        data = response.json()
-        self.assertEqual(data['code'], 400002)
-
-    def test_create_apartment_no_rental_plans(self):
-        """缺少租期租金方案：返回 400002"""
-        payload = self.valid_payload.copy()
-        payload['room_types'] = [
-            {
-                'name': '标准单间',
-                'images': ['https://example.com/room1.jpg'],
-                'layout_type': 'studio',
-                'window_type': 'external',
-                'orientation': 'south',
-                'floor': 5,
-                'rental_plans': [],
-            }
-        ]
-
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
-        response = self.client.post(self.url, data=payload, format='json')
-
-        self.assertEqual(response.status_code, 400)
-        data = response.json()
-        self.assertEqual(data['code'], 400002)
-
-    def test_create_apartment_invalid_district(self):
-        """无效行政区：返回 400002"""
-        payload = self.valid_payload.copy()
-        payload['district_id'] = 99999
-
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
-        response = self.client.post(self.url, data=payload, format='json')
-
-        self.assertEqual(response.status_code, 400)
-        data = response.json()
-        self.assertEqual(data['code'], 400002)
-
-    def test_create_apartment_invalid_street(self):
-        """无效街道：返回 400002"""
-        # 创建一个不属于该行政区的街道
-        other_district = District.objects.create(name='黄浦区', level=1, code='310101', sort=0)
-        other_street = District.objects.create(name='南京东路街道', level=2, code='310101001', parent=other_district, sort=0)
-
-        payload = self.valid_payload.copy()
-        payload['street_id'] = other_street.id
-
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
-        response = self.client.post(self.url, data=payload, format='json')
-
-        self.assertEqual(response.status_code, 400)
-        data = response.json()
-        self.assertEqual(data['code'], 400002)
-
-    def test_tenant_forbidden(self):
-        """租客调用：返回 403001"""
+    def test_list_logged_in_favorited(self):
+        """已登录用户已收藏房源 is_favorited 为 True"""
+        Favorite.objects.create(user=self.tenant, apartment=self.apartment_a)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.tenant_token}')
-        response = self.client.post(self.url, data=self.valid_payload, format='json')
+        response = self.client.get(self.url)
+        data = response.json()['data']
+        for item in data['items']:
+            if item['id'] == self.apartment_a.id:
+                self.assertEqual(item['is_favorited'], True)
+            else:
+                self.assertEqual(item['is_favorited'], False)
 
-        self.assertEqual(response.status_code, 403)
-        data = response.json()
-        self.assertEqual(data['code'], 403001)
 
-    def test_no_role_forbidden(self):
-        """无角色用户调用：返回 403001"""
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.no_role_token}')
-        response = self.client.post(self.url, data=self.valid_payload, format='json')
+class PublicApartmentDetailTests(TestCase):
+    """房源详情接口测试"""
 
-        self.assertEqual(response.status_code, 403)
-        data = response.json()
-        self.assertEqual(data['code'], 403001)
+    def setUp(self):
+        self.client = APIClient()
+        self.district = District.objects.create(name='浦东新区', level=1, code='310115', sort=0)
+        self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
+        self.landlord = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
+        self.tenant = User.objects.create(phone='13900139000', hashed_password='fake', role='tenant', is_active=True)
+        self.tenant_token = self._get_token(self.tenant)
 
-    def test_unauthenticated(self):
-        """未登录调用：返回 401001"""
-        self.client.credentials()  # 清除认证
-        response = self.client.post(self.url, data=self.valid_payload, format='json')
+        self.apartment = Apartment.objects.create(
+            landlord=self.landlord,
+            name='测试公寓',
+            cover_image='https://example.com/cover.jpg',
+            description='测试描述',
+            district=self.district,
+            street=self.street,
+            detail_address='测试路1号',
+            contact_phone='13800138000',
+            status='published',
+            min_monthly_rent=3000,
+        )
+        self.room = RoomType.objects.create(
+            apartment=self.apartment,
+            name='标准单间',
+            images=['https://example.com/room.jpg'],
+            facilities=['air_conditioner'],
+            layout_type='studio',
+            window_type='external',
+            orientation='south',
+            floor=5,
+            sort=0,
+        )
+        RentalPlan.objects.create(room_type=self.room, lease_term='1_month', monthly_rent=3000, payment_method='pay_1_deposit_1')
 
-        self.assertEqual(response.status_code, 401)
-        data = response.json()
-        self.assertEqual(data['code'], 401001)
+    def _get_token(self, user):
+        refresh = RefreshToken.for_user(user)
+        refresh['role'] = user.role
+        refresh['phone'] = user.phone
+        refresh['username'] = user.username
+        return str(refresh.access_token)
 
-    def test_apartment_name_too_short(self):
-        """公寓名称少于 2 字：返回 400002"""
-        payload = self.valid_payload.copy()
-        payload['name'] = 'A'
+    def test_detail_success(self):
+        """获取已上架房源详情成功"""
+        response = self.client.get(f'/api/v1/apartments/{self.apartment.id}/')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()['data']
+        self.assertEqual(data['id'], self.apartment.id)
+        self.assertEqual(data['name'], self.apartment.name)
+        self.assertEqual(data['description'], self.apartment.description)
+        self.assertEqual(data['district_name'], '浦东新区')
+        self.assertEqual(data['street_name'], '陆家嘴街道')
+        self.assertEqual(data['min_monthly_rent'], 3000)
+        self.assertIn('room_types', data)
+        self.assertEqual(len(data['room_types']), 1)
+        self.assertEqual(data['is_favorited'], False)
 
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
-        response = self.client.post(self.url, data=payload, format='json')
+    def test_detail_not_found(self):
+        """获取未上架房源详情返回 404"""
+        unpublished = Apartment.objects.create(
+            landlord=self.landlord,
+            name='未上架',
+            cover_image='https://example.com/c.jpg',
+            description='描述',
+            district=self.district,
+            street=self.street,
+            detail_address='测试路',
+            contact_phone='13800138000',
+            status='pending_first_review',
+            min_monthly_rent=2000,
+        )
+        response = self.client.get(f'/api/v1/apartments/{unpublished.id}/')
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json()['code'], 404001)
 
-        self.assertEqual(response.status_code, 400)
-        data = response.json()
-        self.assertEqual(data['code'], 400002)
+    def test_detail_not_exist(self):
+        """获取不存在的房源返回 404"""
+        response = self.client.get('/api/v1/apartments/99999/')
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json()['code'], 404001)
 
-    def test_description_over_limit(self):
-        """描述超过 500 字：返回 400002"""
-        payload = self.valid_payload.copy()
-        payload['description'] = 'A' * 501
+    def test_detail_with_favorite(self):
+        """已登录且已收藏时 is_favorited 为 True"""
+        Favorite.objects.create(user=self.tenant, apartment=self.apartment)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.tenant_token}')
+        response = self.client.get(f'/api/v1/apartments/{self.apartment.id}/')
+        data = response.json()['data']
+        self.assertEqual(data['is_favorited'], True)
 
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
-        response = self.client.post(self.url, data=payload, format='json')
+    def test_detail_room_types_structure(self):
+        """详情中房型卡片结构正确"""
+        response = self.client.get(f'/api/v1/apartments/{self.apartment.id}/')
+        data = response.json()['data']
+        room_types = data['room_types']
+        self.assertEqual(len(room_types), 1)
+        rt = room_types[0]
+        self.assertIn('id', rt)
+        self.assertIn('name', rt)
+        self.assertIn('images', rt)
+        self.assertIn('facilities', rt)
+        self.assertIn('layout_type', rt)
+        self.assertIn('window_type', rt)
+        self.assertIn('orientation', rt)
+        self.assertIn('floor', rt)
+        self.assertIn('sort', rt)
+        self.assertIn('min_monthly_rent', rt)
 
-        self.assertEqual(response.status_code, 400)
-        data = response.json()
-        self.assertEqual(data['code'], 400002)
 
-    def test_contact_phone_invalid(self):
-        """联系电话非 11 位：返回 400002"""
-        payload = self.valid_payload.copy()
-        payload['contact_phone'] = '12345'
+class ApartmentRoomTypesTests(TestCase):
+    """房源下所有房型接口测试"""
 
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
-        response = self.client.post(self.url, data=payload, format='json')
+    def setUp(self):
+        self.client = APIClient()
+        self.district = District.objects.create(name='浦东新区', level=1, code='310115', sort=0)
+        self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
+        self.landlord = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
+        self.apartment = Apartment.objects.create(
+            landlord=self.landlord,
+            name='测试公寓',
+            cover_image='https://example.com/cover.jpg',
+            description='描述',
+            district=self.district,
+            street=self.street,
+            detail_address='测试路1号',
+            contact_phone='13800138000',
+            status='published',
+            min_monthly_rent=2500,
+        )
+        self.room1 = RoomType.objects.create(
+            apartment=self.apartment,
+            name='单间A',
+            images=['https://example.com/a.jpg'],
+            facilities=[],
+            layout_type='studio',
+            window_type='external',
+            orientation='south',
+            floor=3,
+            sort=1,
+        )
+        RentalPlan.objects.create(room_type=self.room1, lease_term='1_month', monthly_rent=2500, payment_method='pay_1_deposit_1')
+        self.room2 = RoomType.objects.create(
+            apartment=self.apartment,
+            name='单间B',
+            images=['https://example.com/b.jpg'],
+            facilities=['air_conditioner'],
+            layout_type='studio',
+            window_type='internal',
+            orientation='north',
+            floor=5,
+            sort=0,
+        )
+        RentalPlan.objects.create(room_type=self.room2, lease_term='6_month', monthly_rent=2800, payment_method='pay_3_deposit_1')
 
-        self.assertEqual(response.status_code, 400)
-        data = response.json()
-        self.assertEqual(data['code'], 400002)
+    def test_apartment_room_types_success(self):
+        """获取房源下所有房型成功"""
+        response = self.client.get(f'/api/v1/apartments/{self.apartment.id}/room-types/')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()['data']
+        self.assertEqual(len(data), 2)
+        # 按 sort 排序，room2 sort=0 在前
+        self.assertEqual(data[0]['id'], self.room2.id)
+        self.assertEqual(data[1]['id'], self.room1.id)
 
-    def test_floor_invalid(self):
-        """楼层小于 1：返回 400002"""
-        payload = self.valid_payload.copy()
-        payload['room_types'] = [
-            {
-                'name': '标准单间',
-                'images': ['https://example.com/room1.jpg'],
-                'layout_type': 'studio',
-                'window_type': 'external',
-                'orientation': 'south',
-                'floor': 0,
-                'rental_plans': [
-                    {'lease_term': '1_month', 'monthly_rent': 3000, 'payment_method': 'pay_1_deposit_1'},
-                ],
-            }
-        ]
+    def test_apartment_room_types_unpublished(self):
+        """未上架房源返回 404"""
+        unpublished = Apartment.objects.create(
+            landlord=self.landlord,
+            name='未上架',
+            cover_image='https://example.com/c.jpg',
+            description='描述',
+            district=self.district,
+            street=self.street,
+            detail_address='测试路',
+            contact_phone='13800138000',
+            status='pending_first_review',
+            min_monthly_rent=2000,
+        )
+        response = self.client.get(f'/api/v1/apartments/{unpublished.id}/room-types/')
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json()['code'], 404001)
 
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
-        response = self.client.post(self.url, data=payload, format='json')
 
-        self.assertEqual(response.status_code, 400)
-        data = response.json()
-        self.assertEqual(data['code'], 400002)
+class RoomTypeDetailTests(TestCase):
+    """户型详情接口测试"""
 
-    def test_monthly_rent_invalid(self):
-        """月租金小于等于 0：返回 400002"""
-        payload = self.valid_payload.copy()
-        payload['room_types'] = [
-            {
-                'name': '标准单间',
-                'images': ['https://example.com/room1.jpg'],
-                'layout_type': 'studio',
-                'window_type': 'external',
-                'orientation': 'south',
-                'floor': 5,
-                'rental_plans': [
-                    {'lease_term': '1_month', 'monthly_rent': 0, 'payment_method': 'pay_1_deposit_1'},
-                ],
-            }
-        ]
+    def setUp(self):
+        self.client = APIClient()
+        self.district = District.objects.create(name='浦东新区', level=1, code='310115', sort=0)
+        self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
+        self.landlord = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
+        self.apartment = Apartment.objects.create(
+            landlord=self.landlord,
+            name='测试公寓',
+            cover_image='https://example.com/cover.jpg',
+            description='描述',
+            district=self.district,
+            street=self.street,
+            detail_address='测试路1号',
+            contact_phone='13800138000',
+            status='published',
+            min_monthly_rent=3000,
+        )
+        self.room = RoomType.objects.create(
+            apartment=self.apartment,
+            name='标准单间',
+            images=['https://example.com/room.jpg'],
+            facilities=['air_conditioner'],
+            layout_type='studio',
+            window_type='external',
+            orientation='south',
+            floor=5,
+            sort=0,
+        )
+        RentalPlan.objects.create(room_type=self.room, lease_term='1_month', monthly_rent=3000, payment_method='pay_1_deposit_1')
+        RentalPlan.objects.create(room_type=self.room, lease_term='6_month', monthly_rent=2800, payment_method='pay_3_deposit_1')
 
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
-        response = self.client.post(self.url, data=payload, format='json')
+    def test_room_type_detail_success(self):
+        """获取户型详情成功"""
+        response = self.client.get(f'/api/v1/apartments/room-types/{self.room.id}/')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()['data']
+        self.assertEqual(data['id'], self.room.id)
+        self.assertEqual(data['name'], '标准单间')
+        self.assertEqual(len(data['images']), 1)
+        self.assertEqual(len(data['rental_plans']), 2)
+        self.assertIn('apartment', data)
+        self.assertEqual(data['apartment']['id'], self.apartment.id)
 
-        self.assertEqual(response.status_code, 400)
-        data = response.json()
-        self.assertEqual(data['code'], 400002)
+    def test_room_type_detail_not_found(self):
+        """获取不存在的户型返回 404"""
+        response = self.client.get('/api/v1/apartments/room-types/99999/')
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json()['code'], 404001)
+
+    def test_room_type_detail_unpublished_apartment(self):
+        """所属公寓未上架时返回 404"""
+        unpublished = Apartment.objects.create(
+            landlord=self.landlord,
+            name='未上架',
+            cover_image='https://example.com/c.jpg',
+            description='描述',
+            district=self.district,
+            street=self.street,
+            detail_address='测试路',
+            contact_phone='13800138000',
+            status='pending_first_review',
+            min_monthly_rent=2000,
+        )
+        room = RoomType.objects.create(
+            apartment=unpublished,
+            name='隐藏房型',
+            images=[],
+            facilities=[],
+            layout_type='studio',
+            window_type='external',
+            orientation='south',
+            floor=1,
+            sort=0,
+        )
+        RentalPlan.objects.create(room_type=room, lease_term='1_month', monthly_rent=2000, payment_method='pay_1_deposit_1')
+        response = self.client.get(f'/api/v1/apartments/room-types/{room.id}/')
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json()['code'], 404001)

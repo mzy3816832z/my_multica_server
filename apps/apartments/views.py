@@ -1,25 +1,206 @@
 """
-房源模块视图：商家发布房源接口
+房源模块视图：公共房源列表与详情、商家发布房源接口
 """
 import logging
 from django.db import transaction
-from django.utils import timezone
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from drf_spectacular.utils import extend_schema
 
 from core.response import unified_response, ErrorCode
-from core.exceptions import BusinessException, ParamErrorException
+from core.exceptions import BusinessException, NotFoundException
 from core.permissions import IsLandlord
+from core.pagination import StandardPagination
 from apps.apartments.models import Apartment, RoomType, RentalPlan
 from apps.apartments.serializers import (
     ApartmentCreateSerializer,
     ApartmentResponseSerializer,
+    ApartmentListItemSerializer,
+    ApartmentDetailSerializer,
+    RoomTypeDetailSerializer,
 )
 from apps.audits.models import AuditRecord
 
 logger = logging.getLogger('apps')
 
+
+# ============================================================
+# 公共房源接口（公开访问）
+# ============================================================
+
+@extend_schema(
+    request=None,
+    responses={200: ApartmentListItemSerializer(many=True)},
+    summary='公共房源列表',
+    description='仅展示已上架（published）房源，支持组合筛选与分页。筛选条件可叠加，结果按审核通过时间（updated_at）倒序。',
+    tags=['公共房源'],
+    parameters=[
+        {'name': 'keyword', 'in': 'query', 'schema': {'type': 'string'}, 'description': '公寓名称关键词'},
+        {'name': 'district_id', 'in': 'query', 'schema': {'type': 'integer'}, 'description': '行政区 ID'},
+        {'name': 'street_id', 'in': 'query', 'schema': {'type': 'integer'}, 'description': '街道/镇 ID'},
+        {'name': 'layout_type', 'in': 'query', 'schema': {'type': 'string'}, 'description': '户型编码'},
+        {'name': 'lease_term', 'in': 'query', 'schema': {'type': 'string'}, 'description': '租期编码'},
+        {'name': 'min_price', 'in': 'query', 'schema': {'type': 'integer'}, 'description': '最低月租金'},
+        {'name': 'max_price', 'in': 'query', 'schema': {'type': 'integer'}, 'description': '最高月租金'},
+        {'name': 'page', 'in': 'query', 'schema': {'type': 'integer'}, 'description': '页码，默认 1'},
+        {'name': 'page_size', 'in': 'query', 'schema': {'type': 'integer'}, 'description': '每页条数，默认 10，最大 100'},
+    ],
+)
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def apartment_list(request):
+    """
+    GET /api/v1/apartments
+    公共房源列表（仅 published）
+    """
+    queryset = Apartment.objects.filter(status='published').order_by('-updated_at')
+
+    # 关键词搜索（公寓名称）
+    keyword = request.query_params.get('keyword')
+    if keyword:
+        queryset = queryset.filter(name__icontains=keyword)
+
+    # 行政区筛选
+    district_id = request.query_params.get('district_id')
+    if district_id:
+        try:
+            queryset = queryset.filter(district_id=int(district_id))
+        except ValueError:
+            pass
+
+    # 街道筛选
+    street_id = request.query_params.get('street_id')
+    if street_id:
+        try:
+            queryset = queryset.filter(street_id=int(street_id))
+        except ValueError:
+            pass
+
+    # 户型筛选（通过关联房型）
+    layout_type = request.query_params.get('layout_type')
+    if layout_type:
+        queryset = queryset.filter(room_types__layout_type=layout_type).distinct()
+
+    # 租期筛选（通过关联房型→租金方案）
+    lease_term = request.query_params.get('lease_term')
+    if lease_term:
+        queryset = queryset.filter(
+            room_types__rental_plans__lease_term=lease_term
+        ).distinct()
+
+    # 价格区间筛选（基于 min_monthly_rent）
+    min_price = request.query_params.get('min_price')
+    max_price = request.query_params.get('max_price')
+    if min_price:
+        try:
+            queryset = queryset.filter(min_monthly_rent__gte=int(min_price))
+        except ValueError:
+            pass
+    if max_price:
+        try:
+            queryset = queryset.filter(min_monthly_rent__lte=int(max_price))
+        except ValueError:
+            pass
+
+    # 分页
+    paginator = StandardPagination()
+    page = paginator.paginate_queryset(queryset, request)
+    serializer = ApartmentListItemSerializer(
+        page, many=True, context={'request': request}
+    )
+    return paginator.get_paginated_response(serializer.data)
+
+
+@extend_schema(
+    request=None,
+    responses={200: ApartmentDetailSerializer},
+    summary='房源详情',
+    description='返回完整公寓信息、房型卡片列表及当前用户收藏状态（已登录时）。',
+    tags=['公共房源'],
+    parameters=[
+        {'name': 'id', 'in': 'path', 'schema': {'type': 'integer'}, 'description': '公寓 ID'},
+    ],
+)
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def apartment_detail(request, id):
+    """
+    GET /api/v1/apartments/{id}
+    房源详情
+    """
+    try:
+        apartment = Apartment.objects.get(id=id, status='published')
+    except Apartment.DoesNotExist:
+        raise NotFoundException('房源不存在或未上架')
+
+    serializer = ApartmentDetailSerializer(apartment, context={'request': request})
+    return unified_response(data=serializer.data)
+
+
+@extend_schema(
+    request=None,
+    responses={200: RoomTypeDetailSerializer(many=True)},
+    summary='房源下所有房型',
+    description='获取指定房源下的所有房型详情（含租金方案）。',
+    tags=['公共房源'],
+    parameters=[
+        {'name': 'id', 'in': 'path', 'schema': {'type': 'integer'}, 'description': '公寓 ID'},
+    ],
+)
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def apartment_room_types(request, id):
+    """
+    GET /api/v1/apartments/{id}/room-types
+    房源下所有房型
+    """
+    try:
+        apartment = Apartment.objects.get(id=id, status='published')
+    except Apartment.DoesNotExist:
+        raise NotFoundException('房源不存在或未上架')
+
+    room_types = apartment.room_types.all().order_by('sort', 'id')
+    # 预加载租金方案，避免 N+1
+    room_types = room_types.prefetch_related('rental_plans')
+    serializer = RoomTypeDetailSerializer(room_types, many=True)
+    return unified_response(data=serializer.data)
+
+
+@extend_schema(
+    request=None,
+    responses={200: RoomTypeDetailSerializer},
+    summary='户型详情',
+    description='获取指定户型详情，包含完整租金方案及所属公寓简要信息。',
+    tags=['公共房源'],
+    parameters=[
+        {'name': 'id', 'in': 'path', 'schema': {'type': 'integer'}, 'description': '户型 ID'},
+    ],
+)
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def room_type_detail(request, id):
+    """
+    GET /api/v1/room-types/{id}
+    户型详情
+    """
+    try:
+        room_type = RoomType.objects.get(id=id)
+    except RoomType.DoesNotExist:
+        raise NotFoundException('户型不存在')
+
+    # 校验所属公寓是否已上架
+    if room_type.apartment.status != 'published':
+        raise NotFoundException('房源不存在或未上架')
+
+    # 预加载租金方案
+    room_type.rental_plans.all()  # prefetch 已在序列化器中通过 context 控制，这里直接查
+    serializer = RoomTypeDetailSerializer(room_type)
+    return unified_response(data=serializer.data)
+
+
+# ============================================================
+# 商家发布房源接口（已有）
+# ============================================================
 
 @extend_schema(
     request=ApartmentCreateSerializer,
