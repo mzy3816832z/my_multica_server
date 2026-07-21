@@ -16,3 +16,4 @@
 | 14 | feature/apartment-rental/step-14 | feature/apartment-rental/step-13 | e2b0071 | 2026-07-20 | 已合并 |
 | 16 | feature/apartment-rental/step-16 | feature/apartment-rental/step-15 | 8d05381 | 2026-07-20 | 已合并 |
 | 17 | feature/apartment-rental/step-17 | feature/apartment-rental/step-16 | 1e08449 | 2026-07-21 | 待合并 |
+| 18 | feature/apartment-rental/step-18 | feature/apartment-rental/step-17 | a6dcc37 | 2026-07-21 | 待合并 |
