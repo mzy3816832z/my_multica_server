@@ -50,7 +50,7 @@ def test_seed_districts_hierarchy(seeded_db):
 @pytest.mark.django_db
 def test_seed_system_dict_categories(seeded_db):
     """验证6个字典分类都存在"""
-    expected_categories = {'layout_type', 'facility', 'lease_term', 'payment_method', 'window_type', 'orientation'}
+    expected_categories = {'layout_type', 'facility', 'lease_term', 'payment_method', 'window_type', 'window_orientation'}
     actual_categories = set(
         SystemDict.objects.values_list('category', flat=True).distinct()
     )
@@ -106,10 +106,10 @@ def test_seed_system_dict_window_type(seeded_db):
 
 
 @pytest.mark.django_db
-def test_seed_system_dict_orientation(seeded_db):
+def test_seed_system_dict_window_orientation(seeded_db):
     """验证朝向字典完整"""
     codes = list(
-        SystemDict.objects.filter(category='orientation').order_by('sort').values_list('code', flat=True)
+        SystemDict.objects.filter(category='window_orientation').order_by('sort').values_list('code', flat=True)
     )
     expected = ['east', 'south', 'west', 'north', 'southeast', 'southwest', 'northeast', 'northwest']
     assert codes == expected

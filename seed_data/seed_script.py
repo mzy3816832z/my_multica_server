@@ -168,14 +168,14 @@ SYSTEM_DICTS = [
     {'category': 'window_type', 'code': 'outer', 'label': '外窗', 'sort': 2},
 
     # 朝向
-    {'category': 'orientation', 'code': 'east', 'label': '东', 'sort': 1},
-    {'category': 'orientation', 'code': 'south', 'label': '南', 'sort': 2},
-    {'category': 'orientation', 'code': 'west', 'label': '西', 'sort': 3},
-    {'category': 'orientation', 'code': 'north', 'label': '北', 'sort': 4},
-    {'category': 'orientation', 'code': 'southeast', 'label': '东南', 'sort': 5},
-    {'category': 'orientation', 'code': 'southwest', 'label': '西南', 'sort': 6},
-    {'category': 'orientation', 'code': 'northeast', 'label': '东北', 'sort': 7},
-    {'category': 'orientation', 'code': 'northwest', 'label': '西北', 'sort': 8},
+    {'category': 'window_orientation', 'code': 'east', 'label': '东', 'sort': 1},
+    {'category': 'window_orientation', 'code': 'south', 'label': '南', 'sort': 2},
+    {'category': 'window_orientation', 'code': 'west', 'label': '西', 'sort': 3},
+    {'category': 'window_orientation', 'code': 'north', 'label': '北', 'sort': 4},
+    {'category': 'window_orientation', 'code': 'southeast', 'label': '东南', 'sort': 5},
+    {'category': 'window_orientation', 'code': 'southwest', 'label': '西南', 'sort': 6},
+    {'category': 'window_orientation', 'code': 'northeast', 'label': '东北', 'sort': 7},
+    {'category': 'window_orientation', 'code': 'northwest', 'label': '西北', 'sort': 8},
 ]
 
 
