@@ -24,19 +24,19 @@ class MerchantAuditListTests(TestCase):
         self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
 
         # 商家A
-        self.landlord_a = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
+        self.landlord_a = User.objects.create(phone='13800138000', password="fake", role='landlord', is_active=True)
         self.landlord_a_token = self._get_token(self.landlord_a)
 
         # 商家B
-        self.landlord_b = User.objects.create(phone='13800138001', hashed_password='fake', role='landlord', is_active=True)
+        self.landlord_b = User.objects.create(phone='13800138001', password="fake", role='landlord', is_active=True)
         self.landlord_b_token = self._get_token(self.landlord_b)
 
         # 管理员
-        self.admin = User.objects.create(username='admin123', hashed_password='fake', role='admin', is_active=True)
+        self.admin = User.objects.create(username='admin123', password="fake", role='admin', is_active=True)
         self.admin_token = self._get_token(self.admin)
 
         # 租客
-        self.tenant = User.objects.create(phone='13900139000', hashed_password='fake', role='tenant', is_active=True)
+        self.tenant = User.objects.create(phone='13900139000', password="fake", role='tenant', is_active=True)
         self.tenant_token = self._get_token(self.tenant)
 
         # 商家A的房源与审核单
@@ -195,14 +195,14 @@ class AdminAuditListTests(TestCase):
         self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
 
         # 商家
-        self.landlord = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
+        self.landlord = User.objects.create(phone='13800138000', password="fake", role='landlord', is_active=True)
 
         # 管理员
-        self.admin = User.objects.create(username='admin123', hashed_password='fake', role='admin', is_active=True)
+        self.admin = User.objects.create(username='admin123', password="fake", role='admin', is_active=True)
         self.admin_token = self._get_token(self.admin)
 
         # 租客
-        self.tenant = User.objects.create(phone='13900139000', hashed_password='fake', role='tenant', is_active=True)
+        self.tenant = User.objects.create(phone='13900139000', password="fake", role='tenant', is_active=True)
         self.tenant_token = self._get_token(self.tenant)
 
         # 创建房源与审核单
@@ -320,8 +320,8 @@ class AdminAuditDetailTests(TestCase):
 
         self.district = District.objects.create(name='浦东新区', level=1, code='310115', sort=0)
         self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
-        self.landlord = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
-        self.admin = User.objects.create(username='admin123', hashed_password='fake', role='admin', is_active=True)
+        self.landlord = User.objects.create(phone='13800138000', password="fake", role='landlord', is_active=True)
+        self.admin = User.objects.create(username='admin123', password="fake", role='admin', is_active=True)
         self.admin_token = self._get_token(self.admin)
 
         self.apartment = Apartment.objects.create(
@@ -379,8 +379,8 @@ class AdminAuditApproveTests(TestCase):
 
         self.district = District.objects.create(name='浦东新区', level=1, code='310115', sort=0)
         self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
-        self.landlord = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
-        self.admin = User.objects.create(username='admin123', hashed_password='fake', role='admin', is_active=True)
+        self.landlord = User.objects.create(phone='13800138000', password="fake", role='landlord', is_active=True)
+        self.admin = User.objects.create(username='admin123', password="fake", role='admin', is_active=True)
         self.admin_token = self._get_token(self.admin)
 
         self.apartment = Apartment.objects.create(
@@ -505,7 +505,7 @@ class AdminAuditApproveTests(TestCase):
 
     def test_approve_not_admin(self):
         """非管理员返回 403"""
-        tenant = User.objects.create(phone='13900139000', hashed_password='fake', role='tenant', is_active=True)
+        tenant = User.objects.create(phone='13900139000', password="fake", role='tenant', is_active=True)
         token = self._get_token(tenant)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
         response = self.client.post(f'/api/v1/admin/audits/{self.first_audit.id}/approve/')
@@ -520,8 +520,8 @@ class AdminAuditRejectTests(TestCase):
 
         self.district = District.objects.create(name='浦东新区', level=1, code='310115', sort=0)
         self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
-        self.landlord = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
-        self.admin = User.objects.create(username='admin123', hashed_password='fake', role='admin', is_active=True)
+        self.landlord = User.objects.create(phone='13800138000', password="fake", role='landlord', is_active=True)
+        self.admin = User.objects.create(username='admin123', password="fake", role='admin', is_active=True)
         self.admin_token = self._get_token(self.admin)
 
         self.apartment = Apartment.objects.create(
@@ -638,7 +638,7 @@ class AdminAuditRejectTests(TestCase):
 
     def test_reject_not_admin(self):
         """非管理员返回 403"""
-        tenant = User.objects.create(phone='13900139000', hashed_password='fake', role='tenant', is_active=True)
+        tenant = User.objects.create(phone='13900139000', password="fake", role='tenant', is_active=True)
         token = self._get_token(tenant)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
         response = self.client.post(

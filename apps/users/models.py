@@ -2,12 +2,9 @@
 用户、验证码与短信日志模型
 """
 from django.db import models
-from core.models import BaseModel, SoftDeleteManager, AllObjectsManager
-
-
 from django.contrib.auth.models import AbstractBaseUser
 from django.contrib.auth.base_user import BaseUserManager
-from django.db import models
+
 from core.models import BaseModel, SoftDeleteManager, AllObjectsManager
 
 
@@ -20,8 +17,7 @@ class UserManager(BaseUserManager, SoftDeleteManager):
             raise ValueError('必须提供手机号或用户名')
         user = self.model(phone=phone, username=username, role=role, **extra_fields)
         if password:
-            from core.security import hash_password
-            user.hashed_password = hash_password(password)
+            user.set_password(password)
         user.save(using=self._db)
         return user
 
@@ -51,10 +47,6 @@ class User(AbstractBaseUser, BaseModel):
         blank=True,
         unique=True,
         verbose_name='手机号',
-    )
-    hashed_password = models.CharField(
-        max_length=255,
-        verbose_name='加密密码',
     )
     role = models.CharField(
         max_length=20,
@@ -101,14 +93,20 @@ class User(AbstractBaseUser, BaseModel):
         return self.is_staff
 
     def set_password(self, raw_password):
-        """Django 默认密码设置方法，映射到 hashed_password"""
+        """使用 bcrypt 哈希密码，存储到 Django 自带的 password 字段"""
         import bcrypt
-        self.hashed_password = bcrypt.hashpw(raw_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        hashed = bcrypt.hashpw(raw_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        # 使用 Django 的密码格式前缀，便于识别
+        self.password = f'bcrypt${hashed}'
 
     def check_password(self, raw_password):
-        """Django 默认密码校验方法，映射到 hashed_password"""
+        """使用 bcrypt 校验密码"""
         import bcrypt
-        return bcrypt.checkpw(raw_password.encode('utf-8'), self.hashed_password.encode('utf-8'))
+        if self.password.startswith('bcrypt$'):
+            stored_hash = self.password.split('bcrypt$', 1)[1]
+            return bcrypt.checkpw(raw_password.encode('utf-8'), stored_hash.encode('utf-8'))
+        # 兼容旧数据（直接以 bcrypt 哈希存储的 password 字段）
+        return bcrypt.checkpw(raw_password.encode('utf-8'), self.password.encode('utf-8'))
 
 
 class VerifyCode(BaseModel):

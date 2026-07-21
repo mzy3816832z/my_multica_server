@@ -22,8 +22,8 @@ class FavoriteAddTests(TestCase):
         self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
 
         # 创建商家与租客
-        self.landlord = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
-        self.tenant = User.objects.create(phone='13900139000', hashed_password='fake', role='tenant', is_active=True)
+        self.landlord = User.objects.create(phone='13800138000', password="fake", role='landlord', is_active=True)
+        self.tenant = User.objects.create(phone='13900139000', password="fake", role='tenant', is_active=True)
         self.tenant_token = self._get_token(self.tenant)
 
         # 创建已上架房源
@@ -152,8 +152,8 @@ class MyFavoritesListTests(TestCase):
         self.district2 = District.objects.create(name='黄浦区', level=1, code='310101', sort=0)
         self.street2 = District.objects.create(name='南京东路街道', level=2, code='310101001', parent=self.district2, sort=0)
 
-        self.landlord = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
-        self.tenant = User.objects.create(phone='13900139000', hashed_password='fake', role='tenant', is_active=True)
+        self.landlord = User.objects.create(phone='13800138000', password="fake", role='landlord', is_active=True)
+        self.tenant = User.objects.create(phone='13900139000', password="fake", role='tenant', is_active=True)
         self.tenant_token = self._get_token(self.tenant)
 
         # 公寓 A
@@ -293,9 +293,9 @@ class FavoriteDeleteTests(TestCase):
         self.district = District.objects.create(name='浦东新区', level=1, code='310115', sort=0)
         self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
 
-        self.landlord = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
-        self.tenant = User.objects.create(phone='13900139000', hashed_password='fake', role='tenant', is_active=True)
-        self.other_tenant = User.objects.create(phone='13700137000', hashed_password='fake', role='tenant', is_active=True)
+        self.landlord = User.objects.create(phone='13800138000', password="fake", role='landlord', is_active=True)
+        self.tenant = User.objects.create(phone='13900139000', password="fake", role='tenant', is_active=True)
+        self.other_tenant = User.objects.create(phone='13700137000', password="fake", role='tenant', is_active=True)
         self.tenant_token = self._get_token(self.tenant)
         self.other_token = self._get_token(self.other_tenant)
 

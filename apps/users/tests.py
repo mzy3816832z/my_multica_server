@@ -318,14 +318,14 @@ def test_change_password_invalid_code():
 
 def _create_admin_user():
     """创建管理员用户用于测试"""
-    import bcrypt
-    hashed = bcrypt.hashpw('3816832z'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-    return User.objects.create(
+    user = User.objects.create(
         username='admin123',
         role='admin',
-        hashed_password=hashed,
         is_active=True,
     )
+    user.set_password('3816832z')
+    user.save(update_fields=['password', 'updated_at'])
+    return user
 
 
 @pytest.mark.django_db

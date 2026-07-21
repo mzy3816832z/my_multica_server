@@ -22,7 +22,7 @@ class MessageListTests(TestCase):
 
         self.district = District.objects.create(name='浦东新区', level=1, code='310115', sort=0)
         self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
-        self.landlord = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
+        self.landlord = User.objects.create(phone='13800138000', password="fake", role='landlord', is_active=True)
         self.token = self._get_token(self.landlord)
 
         self.apartment = Apartment.objects.create(
@@ -101,7 +101,7 @@ class MessageListTests(TestCase):
 
     def test_list_only_own_messages(self):
         """只能查看自己的消息"""
-        other = User.objects.create(phone='13900139000', hashed_password='fake', role='tenant', is_active=True)
+        other = User.objects.create(phone='13900139000', password="fake", role='tenant', is_active=True)
         other_token = self._get_token(other)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {other_token}')
         response = self.client.get(self.url)
@@ -116,7 +116,7 @@ class MessageReadTests(TestCase):
         self.client = APIClient()
         self.district = District.objects.create(name='浦东新区', level=1, code='310115', sort=0)
         self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
-        self.landlord = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
+        self.landlord = User.objects.create(phone='13800138000', password="fake", role='landlord', is_active=True)
         self.token = self._get_token(self.landlord)
         self.apartment = Apartment.objects.create(
             landlord=self.landlord, name='测试公寓', cover_image='https://example.com/cover.jpg',
@@ -158,7 +158,7 @@ class MessageReadTests(TestCase):
 
     def test_read_other_user_message(self):
         """不能标记其他用户的消息"""
-        other = User.objects.create(phone='13900139000', hashed_password='fake', role='tenant', is_active=True)
+        other = User.objects.create(phone='13900139000', password="fake", role='tenant', is_active=True)
         other_token = self._get_token(other)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {other_token}')
         response = self.client.post(f'/api/v1/messages/{self.msg.id}/read/')
@@ -186,7 +186,7 @@ class MessageUnreadCountTests(TestCase):
         self.client = APIClient()
         self.district = District.objects.create(name='浦东新区', level=1, code='310115', sort=0)
         self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
-        self.landlord = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
+        self.landlord = User.objects.create(phone='13800138000', password="fake", role='landlord', is_active=True)
         self.token = self._get_token(self.landlord)
         self.apartment = Apartment.objects.create(
             landlord=self.landlord, name='测试公寓', cover_image='https://example.com/cover.jpg',
@@ -238,8 +238,8 @@ class RejectNotificationTests(TestCase):
         self.client = APIClient()
         self.district = District.objects.create(name='浦东新区', level=1, code='310115', sort=0)
         self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
-        self.landlord = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
-        self.admin = User.objects.create(username='admin123', hashed_password='fake', role='admin', is_active=True)
+        self.landlord = User.objects.create(phone='13800138000', password="fake", role='landlord', is_active=True)
+        self.admin = User.objects.create(username='admin123', password="fake", role='admin', is_active=True)
         self.admin_token = self._get_token(self.admin)
 
         self.apartment = Apartment.objects.create(

@@ -2,7 +2,6 @@
 用户认证相关视图：注册、登录、身份选择、密码管理等
 """
 import logging
-import bcrypt
 from django.utils import timezone
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -28,16 +27,6 @@ from apps.users.serializers import (
 )
 
 logger = logging.getLogger('apps')
-
-
-def _hash_password(password: str) -> str:
-    """bcrypt 加密密码"""
-    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-
-
-def _check_password(password: str, hashed: str) -> bool:
-    """bcrypt 校验密码"""
-    return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
 
 def _generate_tokens(user: User) -> dict:
@@ -101,10 +90,11 @@ def register(request):
     # 创建用户，role 为空字符串（表示未选择身份）
     user = User.objects.create(
         phone=phone,
-        hashed_password=_hash_password(password),
         role='',  # 注册成功后 role 为空
         is_active=True,
     )
+    user.set_password(password)
+    user.save(update_fields=['password', 'updated_at'])
 
     tokens = _generate_tokens(user)
     logger.info(f'[Register] user={user.id}, phone={phone}')
@@ -148,7 +138,7 @@ def login_by_password(request):
     except User.DoesNotExist:
         raise BusinessException('用户不存在', code=404001)
 
-    if not _check_password(password, user.hashed_password):
+    if not user.check_password(password):
         raise BusinessException('密码错误', code=400002)
 
     if not user.is_active:
@@ -285,8 +275,8 @@ def reset_password(request):
     except User.DoesNotExist:
         raise BusinessException('用户不存在', code=404001)
 
-    user.hashed_password = _hash_password(new_password)
-    user.save(update_fields=['hashed_password', 'updated_at'])
+    user.set_password(new_password)
+    user.save(update_fields=['password', 'updated_at'])
 
     logger.info(f'[ResetPassword] user={user.id}, phone={phone}')
 
@@ -325,8 +315,8 @@ def change_password(request):
     if not verify_sms_code(user.phone, 'change_password', sms_code, mark_used=True):
         raise BusinessException('验证码错误或已过期', code=400002)
 
-    user.hashed_password = _hash_password(new_password)
-    user.save(update_fields=['hashed_password', 'updated_at'])
+    user.set_password(new_password)
+    user.save(update_fields=['password', 'updated_at'])
 
     logger.info(f'[ChangePassword] user={user.id}')
 
@@ -362,7 +352,7 @@ def admin_login(request):
     except User.DoesNotExist:
         raise BusinessException('管理员账号不存在', code=404001)
 
-    if not _check_password(password, user.hashed_password):
+    if not user.check_password(password):
         raise BusinessException('密码错误', code=400002)
 
     if not user.is_active:

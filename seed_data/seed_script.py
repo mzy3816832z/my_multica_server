@@ -247,15 +247,14 @@ def seed_admin_user():
         print(f'[AdminUser] User "{ADMIN_USERNAME}" already exists (id={existing.id}).')
         return existing
 
-    hashed = bcrypt.hashpw(ADMIN_PASSWORD.encode(), bcrypt.gensalt()).decode()
     admin = User.objects.create(
         username=ADMIN_USERNAME,
         phone=None,
-        hashed_password=hashed,
-        password='',  # AbstractBaseUser 要求，留空
         role=ADMIN_ROLE,
         is_active=True,
     )
+    admin.set_password(ADMIN_PASSWORD)
+    admin.save(update_fields=['password', 'updated_at'])
     print(f'[AdminUser] Created admin user "{ADMIN_USERNAME}" (id={admin.id}).')
     return admin
 

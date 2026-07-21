@@ -27,7 +27,7 @@ class PublicApartmentListTests(TestCase):
         self.street2 = District.objects.create(name='南京东路街道', level=2, code='310101001', parent=self.district2, sort=0)
 
         # 创建商家
-        self.landlord = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
+        self.landlord = User.objects.create(phone='13800138000', password="fake", role='landlord', is_active=True)
 
         # 创建已上架房源 A（浦东新区）
         self.apartment_a = Apartment.objects.create(
@@ -97,7 +97,7 @@ class PublicApartmentListTests(TestCase):
         )
 
         # 创建租客用户（用于收藏测试）
-        self.tenant = User.objects.create(phone='13900139000', hashed_password='fake', role='tenant', is_active=True)
+        self.tenant = User.objects.create(phone='13900139000', password="fake", role='tenant', is_active=True)
         self.tenant_token = self._get_token(self.tenant)
 
     def _get_token(self, user):
@@ -229,8 +229,8 @@ class PublicApartmentDetailTests(TestCase):
         self.client = APIClient()
         self.district = District.objects.create(name='浦东新区', level=1, code='310115', sort=0)
         self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
-        self.landlord = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
-        self.tenant = User.objects.create(phone='13900139000', hashed_password='fake', role='tenant', is_active=True)
+        self.landlord = User.objects.create(phone='13800138000', password="fake", role='landlord', is_active=True)
+        self.tenant = User.objects.create(phone='13900139000', password="fake", role='tenant', is_active=True)
         self.tenant_token = self._get_token(self.tenant)
 
         self.apartment = Apartment.objects.create(
@@ -338,7 +338,7 @@ class ApartmentRoomTypesTests(TestCase):
         self.client = APIClient()
         self.district = District.objects.create(name='浦东新区', level=1, code='310115', sort=0)
         self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
-        self.landlord = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
+        self.landlord = User.objects.create(phone='13800138000', password="fake", role='landlord', is_active=True)
         self.apartment = Apartment.objects.create(
             landlord=self.landlord,
             name='测试公寓',
@@ -412,7 +412,7 @@ class RoomTypeDetailTests(TestCase):
         self.client = APIClient()
         self.district = District.objects.create(name='浦东新区', level=1, code='310115', sort=0)
         self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
-        self.landlord = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
+        self.landlord = User.objects.create(phone='13800138000', password="fake", role='landlord', is_active=True)
         self.apartment = Apartment.objects.create(
             landlord=self.landlord,
             name='测试公寓',
@@ -504,11 +504,11 @@ class MerchantApartmentListTests(TestCase):
         self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
 
         # 创建商家
-        self.landlord = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
+        self.landlord = User.objects.create(phone='13800138000', password="fake", role='landlord', is_active=True)
         self.landlord_token = self._get_token(self.landlord)
 
         # 创建另一个商家
-        self.other_landlord = User.objects.create(phone='13800138001', hashed_password='fake', role='landlord', is_active=True)
+        self.other_landlord = User.objects.create(phone='13800138001', password="fake", role='landlord', is_active=True)
 
         # 创建已上架房源 A
         self.apartment_a = Apartment.objects.create(
@@ -587,7 +587,7 @@ class MerchantApartmentListTests(TestCase):
 
     def test_list_not_landlord(self):
         """非商家角色返回 403"""
-        tenant = User.objects.create(phone='13900139000', hashed_password='fake', role='tenant', is_active=True)
+        tenant = User.objects.create(phone='13900139000', password="fake", role='tenant', is_active=True)
         token = self._get_token(tenant)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
         response = self.client.get(self.url)
@@ -625,10 +625,10 @@ class MerchantApartmentDetailTests(TestCase):
         self.district = District.objects.create(name='浦东新区', level=1, code='310115', sort=0)
         self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
 
-        self.landlord = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
+        self.landlord = User.objects.create(phone='13800138000', password="fake", role='landlord', is_active=True)
         self.landlord_token = self._get_token(self.landlord)
 
-        self.other_landlord = User.objects.create(phone='13800138001', hashed_password='fake', role='landlord', is_active=True)
+        self.other_landlord = User.objects.create(phone='13800138001', password="fake", role='landlord', is_active=True)
 
         self.apartment = Apartment.objects.create(
             landlord=self.landlord,
@@ -714,10 +714,10 @@ class MerchantApartmentUpdateTests(TestCase):
         self.district2 = District.objects.create(name='黄浦区', level=1, code='310101', sort=0)
         self.street2 = District.objects.create(name='南京东路街道', level=2, code='310101001', parent=self.district2, sort=0)
 
-        self.landlord = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
+        self.landlord = User.objects.create(phone='13800138000', password="fake", role='landlord', is_active=True)
         self.landlord_token = self._get_token(self.landlord)
 
-        self.other_landlord = User.objects.create(phone='13800138001', hashed_password='fake', role='landlord', is_active=True)
+        self.other_landlord = User.objects.create(phone='13800138001', password="fake", role='landlord', is_active=True)
 
         self.apartment = Apartment.objects.create(
             landlord=self.landlord,
@@ -875,10 +875,10 @@ class MerchantApartmentDeleteTests(TestCase):
         self.district = District.objects.create(name='浦东新区', level=1, code='310115', sort=0)
         self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
 
-        self.landlord = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
+        self.landlord = User.objects.create(phone='13800138000', password="fake", role='landlord', is_active=True)
         self.landlord_token = self._get_token(self.landlord)
 
-        self.other_landlord = User.objects.create(phone='13800138001', hashed_password='fake', role='landlord', is_active=True)
+        self.other_landlord = User.objects.create(phone='13800138001', password="fake", role='landlord', is_active=True)
 
         self.apartment = Apartment.objects.create(
             landlord=self.landlord,

@@ -26,7 +26,7 @@ class UploadImageTests(TestCase):
         self.client = APIClient()
         self.user = User.objects.create(
             phone='13800138000',
-            hashed_password='fake_hash',
+            password='fake_hash',
             role='tenant',
             is_active=True,
         )

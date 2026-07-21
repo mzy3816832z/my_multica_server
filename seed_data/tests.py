@@ -129,7 +129,7 @@ def test_seed_admin_user_exists(seeded_db):
 def test_seed_admin_user_password(seeded_db):
     """验证管理员密码可校验"""
     admin = User.objects.get(username='admin123')
-    assert bcrypt.checkpw(b'3816832z', admin.hashed_password.encode())
+    assert admin.check_password('3816832z')
 
 
 @pytest.mark.django_db
