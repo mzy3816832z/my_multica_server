@@ -102,3 +102,19 @@ def test_district_list_level2_with_level1_parent_id(api_client, seed_districts):
     assert data['code'] == 0
     assert len(data['data']) == 1
     assert data['data'][0]['name'] == '南京东路街道'
+
+
+@pytest.mark.django_db
+def test_district_list_no_parent_field(api_client, seed_districts):
+    """测试返回结果中不包含 parent 字段"""
+    response = api_client.get('/api/v1/districts/', {'level': 1})
+    assert response.status_code == 200
+    data = response.json()
+    assert data['code'] == 0
+    for item in data['data']:
+        assert 'parent' not in item
+        assert 'id' in item
+        assert 'name' in item
+        assert 'level' in item
+        assert 'code' in item
+        assert 'sort' in item

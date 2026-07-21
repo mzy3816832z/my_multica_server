@@ -11,4 +11,4 @@ class DistrictSerializer(serializers.ModelSerializer):
     """
     class Meta:
         model = District
-        fields = ['id', 'name', 'level', 'code', 'sort', 'parent']
+        fields = ['id', 'name', 'level', 'code', 'sort']

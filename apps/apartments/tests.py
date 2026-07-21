@@ -865,6 +865,30 @@ class MerchantApartmentUpdateTests(TestCase):
         response = self.client.put(f'/api/v1/merchant/apartments/{self.apartment.id}', payload, format='json')
         self.assertEqual(response.status_code, 400)
 
+    def test_update_only_street_id_valid(self):
+        """仅传入有效 street_id（不传 district_id）应校验通过并触发审核"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
+        payload = {'street_id': self.street2.id}
+        response = self.client.put(f'/api/v1/merchant/apartments/{self.apartment.id}', payload, format='json')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()['data']
+        self.assertEqual(data['updated'], False)
+
+    def test_update_only_street_id_invalid(self):
+        """仅传入无效 street_id 应返回 400"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
+        payload = {'street_id': 99999}
+        response = self.client.put(f'/api/v1/merchant/apartments/{self.apartment.id}', payload, format='json')
+        self.assertEqual(response.status_code, 400)
+
+    def test_update_street_id_mismatch_district_id(self):
+        """传入 street_id 与 district_id 不匹配应返回 400"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
+        # 黄浦区的街道 + 浦东新区的行政区 → 不匹配
+        payload = {'district_id': self.district.id, 'street_id': self.street2.id}
+        response = self.client.put(f'/api/v1/merchant/apartments/{self.apartment.id}', payload, format='json')
+        self.assertEqual(response.status_code, 400)
+
 
 class MerchantApartmentDeleteTests(TestCase):
     """商家删除房源接口测试"""

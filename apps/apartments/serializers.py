@@ -133,22 +133,26 @@ class ApartmentUpdateSerializer(serializers.Serializer):
     )
 
     def validate(self, attrs):
-        """额外校验：行政区与街道有效性（仅当同时传入时校验）"""
+        """额外校验：行政区与街道有效性"""
         from apps.districts.models import District
 
         district_id = attrs.get('district_id')
         street_id = attrs.get('street_id')
 
-        if district_id is not None and street_id is not None:
+        if street_id is not None:
             try:
-                district = District.objects.get(id=district_id, level=1)
+                street = District.objects.get(id=street_id, level=2)
+            except District.DoesNotExist:
+                raise serializers.ValidationError({'street_id': '无效的街道/镇 ID'})
+
+            if district_id is not None and street.parent_id != district_id:
+                raise serializers.ValidationError({'street_id': '街道/镇不在该行政区内'})
+
+        if district_id is not None:
+            try:
+                District.objects.get(id=district_id, level=1)
             except District.DoesNotExist:
                 raise serializers.ValidationError({'district_id': '无效的行政区 ID'})
-
-            try:
-                District.objects.get(id=street_id, level=2, parent=district)
-            except District.DoesNotExist:
-                raise serializers.ValidationError({'street_id': '无效的街道/镇 ID，或不在该行政区内'})
 
         return attrs
 

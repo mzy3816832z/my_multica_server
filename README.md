@@ -14,6 +14,9 @@
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
+
+# 本地开发需额外安装开发依赖
+pip install -r requirements-dev.txt
 ```
 
 ### 2. 环境变量
