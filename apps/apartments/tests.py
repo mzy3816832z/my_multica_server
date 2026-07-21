@@ -936,3 +936,191 @@ class MerchantApartmentDeleteTests(TestCase):
         """未登录返回 401"""
         response = self.client.delete(f'/api/v1/merchant/apartments/{self.apartment.id}')
         self.assertEqual(response.status_code, 401)
+
+
+# ============================================================
+# 商家发布房源接口单元测试
+# ============================================================
+
+class CreateApartmentTests(TestCase):
+    """商家发布房源接口测试"""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.url = '/api/v1/merchant/apartments/'
+
+        self.district = District.objects.create(name='浦东新区', level=1, code='310115', sort=0)
+        self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
+
+        self.landlord = User.objects.create(phone='13800138000', password='fake', role='landlord', is_active=True)
+        self.landlord_token = self._get_token(self.landlord)
+
+        self.tenant = User.objects.create(phone='13900139000', password='fake', role='tenant', is_active=True)
+
+        self.valid_payload = {
+            'name': '陆家嘴精品公寓',
+            'cover_image': 'https://example.com/cover.jpg',
+            'description': '这是一套位于陆家嘴的精品公寓，交通便利，配套齐全。',
+            'district_id': self.district.id,
+            'street_id': self.street.id,
+            'detail_address': '陆家嘴金融中心888号',
+            'contact_phone': '13800138000',
+            'room_types': [
+                {
+                    'name': '标准单间',
+                    'images': ['https://example.com/room1.jpg'],
+                    'facilities': ['air_conditioner', 'washing_machine'],
+                    'layout_type': 'studio',
+                    'window_type': 'external',
+                    'orientation': 'south',
+                    'floor': 5,
+                    'sort': 0,
+                    'rental_plans': [
+                        {'lease_term': '1_month', 'monthly_rent': 3000, 'payment_method': 'pay_1_deposit_1'},
+                        {'lease_term': '6_month', 'monthly_rent': 2800, 'payment_method': 'pay_3_deposit_1'},
+                    ],
+                },
+            ],
+        }
+
+    def _get_token(self, user):
+        refresh = RefreshToken.for_user(user)
+        refresh['role'] = user.role
+        refresh['phone'] = user.phone
+        refresh['username'] = user.username
+        return str(refresh.access_token)
+
+    def test_create_success(self):
+        """商家发布房源成功，返回房源 ID 和审核单 ID"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
+        response = self.client.post(self.url, self.valid_payload, format='json')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()['data']
+        self.assertIn('apartment_id', data)
+        self.assertIn('audit_id', data)
+        self.assertIsNotNone(data['apartment_id'])
+        self.assertIsNotNone(data['audit_id'])
+
+        apartment = Apartment.objects.get(id=data['apartment_id'])
+        self.assertEqual(apartment.name, '陆家嘴精品公寓')
+        self.assertEqual(apartment.landlord, self.landlord)
+        self.assertEqual(apartment.status, 'pending_first_review')
+        self.assertEqual(apartment.min_monthly_rent, 2800)
+
+        audit = AuditRecord.objects.get(id=data['audit_id'])
+        self.assertEqual(audit.type, 'first_review')
+        self.assertEqual(audit.status, 'pending')
+        self.assertIsNotNone(audit.submitted_data)
+
+    def test_create_multi_room_types(self):
+        """发布多个房型的房源，最低月租金正确"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
+        payload = dict(self.valid_payload)
+        payload['room_types'] = [
+            {
+                'name': '豪华套房',
+                'images': ['https://example.com/luxury.jpg'],
+                'facilities': ['air_conditioner', 'wifi'],
+                'layout_type': 'two_bedroom',
+                'window_type': 'external',
+                'orientation': 'east',
+                'floor': 8,
+                'sort': 0,
+                'rental_plans': [
+                    {'lease_term': '1_year', 'monthly_rent': 8000, 'payment_method': 'pay_3_deposit_1'},
+                ],
+            },
+            {
+                'name': '经济单间',
+                'images': ['https://example.com/budget.jpg'],
+                'facilities': [],
+                'layout_type': 'studio',
+                'window_type': 'internal',
+                'orientation': 'north',
+                'floor': 2,
+                'sort': 1,
+                'rental_plans': [
+                    {'lease_term': '1_month', 'monthly_rent': 2000, 'payment_method': 'pay_1_deposit_1'},
+                ],
+            },
+        ]
+        response = self.client.post(self.url, payload, format='json')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()['data']
+        apartment = Apartment.objects.get(id=data['apartment_id'])
+        self.assertEqual(apartment.min_monthly_rent, 2000)
+        self.assertEqual(apartment.room_types.count(), 2)
+
+    def test_create_unauthorized(self):
+        """未登录返回 401"""
+        response = self.client.post(self.url, self.valid_payload, format='json')
+        self.assertEqual(response.status_code, 401)
+
+    def test_create_not_landlord(self):
+        """租客角色返回 403"""
+        token = self._get_token(self.tenant)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+        response = self.client.post(self.url, self.valid_payload, format='json')
+        self.assertEqual(response.status_code, 403)
+
+    def test_create_missing_required_fields(self):
+        """缺少必填字段返回 400"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
+        payload = {'name': '测试'}
+        response = self.client.post(self.url, payload, format='json')
+        self.assertEqual(response.status_code, 400)
+
+    def test_create_invalid_district(self):
+        """无效行政区 ID 返回 400"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
+        payload = dict(self.valid_payload)
+        payload['district_id'] = 99999
+        response = self.client.post(self.url, payload, format='json')
+        self.assertEqual(response.status_code, 400)
+
+    def test_create_invalid_street(self):
+        """无效街道 ID 返回 400"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
+        payload = dict(self.valid_payload)
+        payload['street_id'] = 99999
+        response = self.client.post(self.url, payload, format='json')
+        self.assertEqual(response.status_code, 400)
+
+    def test_create_no_room_types(self):
+        """无房型数据返回 400"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
+        payload = dict(self.valid_payload)
+        payload['room_types'] = []
+        response = self.client.post(self.url, payload, format='json')
+        self.assertEqual(response.status_code, 400)
+
+    def test_create_too_many_room_images(self):
+        """房型图片超过 5 张返回 400"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
+        payload = dict(self.valid_payload)
+        payload['room_types'][0]['images'] = [
+            'https://example.com/1.jpg',
+            'https://example.com/2.jpg',
+            'https://example.com/3.jpg',
+            'https://example.com/4.jpg',
+            'https://example.com/5.jpg',
+            'https://example.com/6.jpg',
+        ]
+        response = self.client.post(self.url, payload, format='json')
+        self.assertEqual(response.status_code, 400)
+
+    def test_create_no_rental_plans(self):
+        """房型无租金方案返回 400"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
+        payload = dict(self.valid_payload)
+        payload['room_types'][0]['rental_plans'] = []
+        response = self.client.post(self.url, payload, format='json')
+        self.assertEqual(response.status_code, 400)
+
+    def test_create_negative_rent(self):
+        """月租金为负数返回 400"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
+        payload = dict(self.valid_payload)
+        payload['room_types'][0]['rental_plans'][0]['monthly_rent'] = -100
+        response = self.client.post(self.url, payload, format='json')
+        self.assertEqual(response.status_code, 400)
