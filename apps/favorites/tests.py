@@ -11,8 +11,8 @@ from apps.apartments.models import Apartment, RoomType, RentalPlan
 from apps.favorites.models import Favorite
 
 
-class FavoriteToggleTests(TestCase):
-    """收藏/取消收藏接口测试"""
+class FavoriteAddTests(TestCase):
+    """添加收藏接口测试"""
 
     def setUp(self):
         self.client = APIClient()
@@ -81,24 +81,24 @@ class FavoriteToggleTests(TestCase):
         response = self.client.post(self.url, {'apartment_id': self.apartment.id})
         self.assertEqual(response.status_code, 200)
         data = response.json()['data']
-        self.assertEqual(data['is_favorited'], True)
-        self.assertIsNotNone(data['favorite_id'])
+        self.assertIsNotNone(data['id'])
+        self.assertEqual(data['apartment_id'], self.apartment.id)
         # 数据库验证
         self.assertTrue(Favorite.objects.filter(user=self.tenant, apartment=self.apartment).exists())
 
-    def test_favorite_idempotent_already_favorited(self):
-        """重复收藏同一公寓 → 取消收藏"""
-        Favorite.objects.create(user=self.tenant, apartment=self.apartment)
+    def test_favorite_already_favorited(self):
+        """重复收藏同一公寓 → 返回已有记录"""
+        fav = Favorite.objects.create(user=self.tenant, apartment=self.apartment)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.tenant_token}')
         response = self.client.post(self.url, {'apartment_id': self.apartment.id})
         self.assertEqual(response.status_code, 200)
         data = response.json()['data']
-        self.assertEqual(data['is_favorited'], False)
-        # 数据库验证已逻辑删除
-        self.assertFalse(Favorite.objects.filter(user=self.tenant, apartment=self.apartment).exists())
-        self.assertTrue(Favorite.all_objects.filter(user=self.tenant, apartment=self.apartment, deleted_at__isnull=False).exists())
+        self.assertEqual(data['id'], fav.id)
+        self.assertEqual(data['apartment_id'], self.apartment.id)
+        # 数据库验证仍然有效
+        self.assertTrue(Favorite.objects.filter(user=self.tenant, apartment=self.apartment).exists())
 
-    def test_favorite_idempotent_re_favorite(self):
+    def test_favorite_re_favorite(self):
         """取消收藏后再次收藏 → 恢复记录"""
         fav = Favorite.objects.create(user=self.tenant, apartment=self.apartment)
         fav.deleted_at = __import__('django.utils.timezone').utils.timezone.now()
@@ -108,9 +108,8 @@ class FavoriteToggleTests(TestCase):
         response = self.client.post(self.url, {'apartment_id': self.apartment.id})
         self.assertEqual(response.status_code, 200)
         data = response.json()['data']
-        self.assertEqual(data['is_favorited'], True)
         # 验证恢复的是同一条记录
-        self.assertEqual(data['favorite_id'], fav.id)
+        self.assertEqual(data['id'], fav.id)
         fav.refresh_from_db()
         self.assertIsNone(fav.deleted_at)
 
@@ -217,8 +216,8 @@ class MyFavoritesListTests(TestCase):
 
     def test_list_ordered_by_created_at_desc(self):
         """列表按收藏时间倒序"""
-        fav_a = Favorite.objects.create(user=self.tenant, apartment=self.apartment_a)
-        fav_b = Favorite.objects.create(user=self.tenant, apartment=self.apartment_b)
+        Favorite.objects.create(user=self.tenant, apartment=self.apartment_a)
+        Favorite.objects.create(user=self.tenant, apartment=self.apartment_b)
 
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.tenant_token}')
         response = self.client.get(self.url)
@@ -281,5 +280,75 @@ class MyFavoritesListTests(TestCase):
     def test_list_unauthorized(self):
         """未登录返回 401"""
         response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json()['code'], 401001)
+
+
+class FavoriteDeleteTests(TestCase):
+    """取消收藏接口测试"""
+
+    def setUp(self):
+        self.client = APIClient()
+
+        self.district = District.objects.create(name='浦东新区', level=1, code='310115', sort=0)
+        self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
+
+        self.landlord = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
+        self.tenant = User.objects.create(phone='13900139000', hashed_password='fake', role='tenant', is_active=True)
+        self.other_tenant = User.objects.create(phone='13700137000', hashed_password='fake', role='tenant', is_active=True)
+        self.tenant_token = self._get_token(self.tenant)
+        self.other_token = self._get_token(self.other_tenant)
+
+        self.apartment = Apartment.objects.create(
+            landlord=self.landlord,
+            name='测试公寓',
+            cover_image='https://example.com/cover.jpg',
+            description='测试描述',
+            district=self.district,
+            street=self.street,
+            detail_address='测试路1号',
+            contact_phone='13800138000',
+            status='published',
+            min_monthly_rent=3000,
+        )
+
+        self.favorite = Favorite.objects.create(user=self.tenant, apartment=self.apartment)
+
+    def _get_token(self, user):
+        refresh = RefreshToken.for_user(user)
+        refresh['role'] = user.role
+        refresh['phone'] = user.phone
+        refresh['username'] = user.username
+        return str(refresh.access_token)
+
+    def test_delete_success(self):
+        """正常取消收藏"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.tenant_token}')
+        response = self.client.delete(f'/api/v1/favorites/{self.favorite.id}/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['code'], 0)
+        # 验证逻辑删除
+        self.assertFalse(Favorite.objects.filter(id=self.favorite.id).exists())
+        self.assertTrue(Favorite.all_objects.filter(id=self.favorite.id, deleted_at__isnull=False).exists())
+
+    def test_delete_not_found(self):
+        """取消不存在的收藏记录"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.tenant_token}')
+        response = self.client.delete('/api/v1/favorites/99999/')
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json()['code'], 404001)
+
+    def test_delete_other_user_favorite(self):
+        """不能取消别人的收藏"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.other_token}')
+        response = self.client.delete(f'/api/v1/favorites/{self.favorite.id}/')
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json()['code'], 404001)
+        # 验证记录未被删除
+        self.assertTrue(Favorite.objects.filter(id=self.favorite.id).exists())
+
+    def test_delete_unauthorized(self):
+        """未登录返回 401"""
+        response = self.client.delete(f'/api/v1/favorites/{self.favorite.id}/')
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.json()['code'], 401001)

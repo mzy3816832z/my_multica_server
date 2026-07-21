@@ -5,14 +5,15 @@ from rest_framework import serializers
 
 
 class FavoriteCreateSerializer(serializers.Serializer):
-    """收藏请求序列化器"""
+    """添加收藏请求序列化器"""
     apartment_id = serializers.IntegerField(min_value=1, help_text='公寓 ID')
 
 
-class FavoriteToggleResponseSerializer(serializers.Serializer):
-    """收藏/取消收藏响应序列化器"""
-    is_favorited = serializers.BooleanField(help_text='当前是否已收藏')
-    favorite_id = serializers.IntegerField(help_text='收藏记录 ID', allow_null=True)
+class FavoriteCreateResponseSerializer(serializers.Serializer):
+    """添加收藏响应序列化器"""
+    id = serializers.IntegerField(help_text='收藏记录 ID')
+    apartment_id = serializers.IntegerField(help_text='公寓 ID')
+    created_at = serializers.DateTimeField(help_text='收藏时间')
 
 
 class FavoriteListItemSerializer(serializers.Serializer):

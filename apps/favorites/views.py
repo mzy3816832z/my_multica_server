@@ -1,5 +1,5 @@
 """
-收藏模块视图：收藏/取消收藏、我的收藏列表
+收藏模块视图：添加收藏、取消收藏、我的收藏列表
 """
 import logging
 from django.utils import timezone
@@ -13,7 +13,7 @@ from core.pagination import StandardPagination
 from apps.favorites.models import Favorite
 from apps.favorites.serializers import (
     FavoriteCreateSerializer,
-    FavoriteToggleResponseSerializer,
+    FavoriteCreateResponseSerializer,
     FavoriteListItemSerializer,
 )
 from apps.apartments.models import Apartment
@@ -21,22 +21,35 @@ from apps.apartments.models import Apartment
 logger = logging.getLogger('apps')
 
 
+def _extract_first_error(errors):
+    """从 serializer.errors 中提取第一个错误信息字符串"""
+    if isinstance(errors, dict):
+        for key in errors:
+            val = errors[key]
+            if isinstance(val, list):
+                return str(val[0])
+            elif isinstance(val, dict):
+                return _extract_first_error(val)
+            else:
+                return str(val)
+    elif isinstance(errors, list):
+        return str(errors[0])
+    return str(errors)
+
+
 @extend_schema(
     request=FavoriteCreateSerializer,
-    responses={200: FavoriteToggleResponseSerializer},
-    summary='收藏/取消收藏公寓',
-    description='''收藏或取消收藏指定公寓，支持幂等：
-- 若当前未收藏，则创建收藏记录，返回 is_favorited=true
-- 若当前已收藏，则取消收藏（逻辑删除），返回 is_favorited=false
-- 若收藏记录已被逻辑删除，重新收藏时恢复该记录''',
+    responses={200: FavoriteCreateResponseSerializer},
+    summary='添加收藏',
+    description='收藏指定公寓。若已收藏（含已逻辑删除后恢复），返回已有/恢复后的记录。',
     tags=['收藏'],
 )
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def toggle_favorite(request):
+def add_favorite(request):
     """
     POST /api/v1/favorites
-    收藏/取消收藏公寓（幂等）
+    添加收藏
     """
     serializer = FavoriteCreateSerializer(data=request.data)
     if not serializer.is_valid():
@@ -56,13 +69,12 @@ def toggle_favorite(request):
     existing = Favorite.all_objects.filter(user=user, apartment=apartment).first()
 
     if existing and existing.deleted_at is None:
-        # 已收藏 → 取消收藏（逻辑删除）
-        existing.deleted_at = timezone.now()
-        existing.save(update_fields=['deleted_at', 'updated_at'])
-        logger.info(f'[Unfavorite] user={user.id}, apartment={apartment_id}')
+        # 已收藏 → 直接返回已有记录
+        logger.info(f'[FavoriteExists] user={user.id}, apartment={apartment_id}')
         return unified_response(data={
-            'is_favorited': False,
-            'favorite_id': existing.id,
+            'id': existing.id,
+            'apartment_id': apartment.id,
+            'created_at': existing.created_at,
         })
     elif existing and existing.deleted_at is not None:
         # 已逻辑删除 → 恢复收藏
@@ -70,16 +82,18 @@ def toggle_favorite(request):
         existing.save(update_fields=['deleted_at', 'updated_at'])
         logger.info(f'[ReFavorite] user={user.id}, apartment={apartment_id}')
         return unified_response(data={
-            'is_favorited': True,
-            'favorite_id': existing.id,
+            'id': existing.id,
+            'apartment_id': apartment.id,
+            'created_at': existing.created_at,
         })
     else:
         # 未收藏 → 创建收藏
         favorite = Favorite.objects.create(user=user, apartment=apartment)
         logger.info(f'[Favorite] user={user.id}, apartment={apartment_id}')
         return unified_response(data={
-            'is_favorited': True,
-            'favorite_id': favorite.id,
+            'id': favorite.id,
+            'apartment_id': apartment.id,
+            'created_at': favorite.created_at,
         })
 
 
@@ -130,17 +144,28 @@ def my_favorites(request):
     return paginator.get_paginated_response(items)
 
 
-def _extract_first_error(errors):
-    """从 serializer.errors 中提取第一个错误信息字符串"""
-    if isinstance(errors, dict):
-        for key in errors:
-            val = errors[key]
-            if isinstance(val, list):
-                return str(val[0])
-            elif isinstance(val, dict):
-                return _extract_first_error(val)
-            else:
-                return str(val)
-    elif isinstance(errors, list):
-        return str(errors[0])
-    return str(errors)
+@extend_schema(
+    request=None,
+    responses={200: None},
+    summary='取消收藏',
+    description='按收藏记录 ID 取消收藏（逻辑删除）。只能取消自己的收藏。',
+    tags=['收藏'],
+)
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_favorite(request, pk):
+    """
+    DELETE /api/v1/favorites/<id>
+    取消收藏
+    """
+    user = request.user
+
+    try:
+        favorite = Favorite.objects.get(id=pk, user=user)
+    except Favorite.DoesNotExist:
+        raise NotFoundException('收藏记录不存在')
+
+    favorite.deleted_at = timezone.now()
+    favorite.save(update_fields=['deleted_at', 'updated_at'])
+    logger.info(f'[Unfavorite] user={user.id}, favorite={pk}')
+    return unified_response(data=None)
