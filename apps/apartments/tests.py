@@ -497,7 +497,7 @@ class MerchantApartmentListTests(TestCase):
 
     def setUp(self):
         self.client = APIClient()
-        self.url = '/api/v1/merchant/apartments'
+        self.url = '/api/v1/merchant/apartments/'
 
         # 创建行政区与街道
         self.district = District.objects.create(name='浦东新区', level=1, code='310115', sort=0)

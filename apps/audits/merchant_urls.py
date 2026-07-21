@@ -5,5 +5,5 @@ from django.urls import path
 from apps.audits import views
 
 urlpatterns = [
-    path('audits/', views.merchant_audit_list, name='merchant-audit-list'),
+    path('', views.merchant_audit_list, name='merchant-audit-list'),
 ]
