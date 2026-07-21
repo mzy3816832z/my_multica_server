@@ -9,12 +9,13 @@ from drf_spectacular.utils import extend_schema
 
 from core.response import unified_response, ErrorCode
 from core.exceptions import BusinessException, NotFoundException
-from core.permissions import IsAdmin
+from core.permissions import IsAdmin, IsLandlord
 from core.pagination import StandardPagination
 from core.sms import send_sms
 from apps.audits.models import AuditRecord
 from apps.audits.serializers import (
     AuditListItemSerializer,
+    MerchantAuditListItemSerializer,
     AuditDetailSerializer,
     AuditApproveSerializer,
     AuditRejectSerializer,
@@ -24,6 +25,39 @@ from apps.apartments.models import RoomType, RentalPlan
 from apps.messages_app.models import Message
 
 logger = logging.getLogger('apps')
+
+
+# ============================================================
+# 商家审核接口
+# ============================================================
+
+@extend_schema(
+    request=None,
+    responses={200: MerchantAuditListItemSerializer(many=True)},
+    summary='商家审核记录列表',
+    description='商家查看自有房源的审核记录列表。仅 landlord 角色可访问，只能查看自己的房源审核记录。支持分页，按提交时间倒序。',
+    tags=['商家审核'],
+    parameters=[
+        {'name': 'page', 'in': 'query', 'schema': {'type': 'integer'}, 'description': '页码，默认 1'},
+        {'name': 'page_size', 'in': 'query', 'schema': {'type': 'integer'}, 'description': '每页条数，默认 10，最大 100'},
+    ],
+)
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsLandlord])
+def merchant_audit_list(request):
+    """
+    GET /api/v1/merchant/audits
+    商家审核记录列表
+    """
+    queryset = AuditRecord.objects.filter(
+        deleted_at__isnull=True,
+        apartment__landlord=request.user,
+    ).order_by('-created_at', '-id')
+
+    paginator = StandardPagination()
+    page = paginator.paginate_queryset(queryset, request)
+    serializer = MerchantAuditListItemSerializer(page, many=True)
+    return paginator.get_paginated_response(serializer.data)
 
 
 # ============================================================

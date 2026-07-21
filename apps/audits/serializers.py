@@ -31,6 +31,29 @@ class AuditListItemSerializer(serializers.Serializer):
         return landlord.username or landlord.phone if landlord else None
 
 
+class MerchantAuditListItemSerializer(serializers.Serializer):
+    """商家审核列表项序列化器"""
+    id = serializers.IntegerField(help_text='审核单 ID')
+    apartment_id = serializers.IntegerField(help_text='关联房源 ID')
+    apartment_name = serializers.SerializerMethodField(help_text='公寓名称')
+    type = serializers.CharField(max_length=30, help_text='审核类型')
+    type_display = serializers.SerializerMethodField(help_text='审核类型展示')
+    status = serializers.CharField(max_length=30, help_text='审核状态')
+    status_display = serializers.SerializerMethodField(help_text='审核状态展示')
+    reject_reason = serializers.CharField(max_length=500, help_text='驳回原因', required=False)
+    created_at = serializers.DateTimeField(help_text='提交时间')
+    updated_at = serializers.DateTimeField(help_text='更新时间')
+
+    def get_apartment_name(self, obj):
+        return obj.apartment.name if obj.apartment else None
+
+    def get_type_display(self, obj):
+        return obj.get_type_display()
+
+    def get_status_display(self, obj):
+        return obj.get_status_display()
+
+
 class AuditDetailSerializer(serializers.Serializer):
     """审核详情序列化器"""
     id = serializers.IntegerField(help_text='审核单 ID')

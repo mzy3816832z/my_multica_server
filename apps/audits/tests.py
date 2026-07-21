@@ -12,6 +12,177 @@ from apps.audits.models import AuditRecord
 from apps.messages_app.models import Message
 
 
+class MerchantAuditListTests(TestCase):
+    """商家审核记录列表接口测试"""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.url = '/api/v1/merchant/audits/'
+
+        # 行政区与街道
+        self.district = District.objects.create(name='浦东新区', level=1, code='310115', sort=0)
+        self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
+
+        # 商家A
+        self.landlord_a = User.objects.create(phone='13800138000', hashed_password='fake', role='landlord', is_active=True)
+        self.landlord_a_token = self._get_token(self.landlord_a)
+
+        # 商家B
+        self.landlord_b = User.objects.create(phone='13800138001', hashed_password='fake', role='landlord', is_active=True)
+        self.landlord_b_token = self._get_token(self.landlord_b)
+
+        # 管理员
+        self.admin = User.objects.create(username='admin123', hashed_password='fake', role='admin', is_active=True)
+        self.admin_token = self._get_token(self.admin)
+
+        # 租客
+        self.tenant = User.objects.create(phone='13900139000', hashed_password='fake', role='tenant', is_active=True)
+        self.tenant_token = self._get_token(self.tenant)
+
+        # 商家A的房源与审核单
+        self.apartment_a1 = Apartment.objects.create(
+            landlord=self.landlord_a,
+            name='商家A公寓1',
+            cover_image='https://example.com/cover.jpg',
+            description='描述',
+            district=self.district,
+            street=self.street,
+            detail_address='测试路1号',
+            contact_phone='13800138000',
+            status='pending_first_review',
+        )
+        self.audit_a1 = AuditRecord.objects.create(
+            apartment=self.apartment_a1,
+            type='first_review',
+            status='pending',
+            submitted_data={},
+        )
+
+        self.apartment_a2 = Apartment.objects.create(
+            landlord=self.landlord_a,
+            name='商家A公寓2',
+            cover_image='https://example.com/cover2.jpg',
+            description='描述2',
+            district=self.district,
+            street=self.street,
+            detail_address='测试路2号',
+            contact_phone='13800138000',
+            status='published',
+        )
+        self.audit_a2 = AuditRecord.objects.create(
+            apartment=self.apartment_a2,
+            type='change_review',
+            status='rejected',
+            submitted_data={'name': '新名称'},
+            original_data={'name': '商家A公寓2'},
+            changed_fields=['name'],
+            reject_reason='名称不符合规范',
+        )
+
+        # 商家B的房源与审核单
+        self.apartment_b1 = Apartment.objects.create(
+            landlord=self.landlord_b,
+            name='商家B公寓1',
+            cover_image='https://example.com/cover3.jpg',
+            description='描述3',
+            district=self.district,
+            street=self.street,
+            detail_address='测试路3号',
+            contact_phone='13800138001',
+            status='pending_first_review',
+        )
+        self.audit_b1 = AuditRecord.objects.create(
+            apartment=self.apartment_b1,
+            type='first_review',
+            status='pending',
+            submitted_data={},
+        )
+
+    def _get_token(self, user):
+        refresh = RefreshToken.for_user(user)
+        refresh['role'] = user.role
+        refresh['phone'] = user.phone
+        refresh['username'] = user.username
+        return str(refresh.access_token)
+
+    def test_list_success(self):
+        """商家可查看自有审核记录列表"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_a_token}')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()['data']
+        self.assertEqual(data['total'], 2)
+        # 按 created_at 倒序，audit_a2 后创建排前面
+        ids = [item['id'] for item in data['items']]
+        self.assertEqual(ids, [self.audit_a2.id, self.audit_a1.id])
+
+    def test_list_only_own_records(self):
+        """商家只能查看自己的房源审核记录"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_a_token}')
+        response = self.client.get(self.url)
+        data = response.json()['data']
+        self.assertEqual(data['total'], 2)
+        for item in data['items']:
+            self.assertIn(item['apartment_name'], ['商家A公寓1', '商家A公寓2'])
+
+    def test_list_pagination(self):
+        """分页参数生效"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_a_token}')
+        response = self.client.get(self.url, {'page': 1, 'page_size': 1})
+        data = response.json()['data']
+        self.assertEqual(data['total'], 2)
+        self.assertEqual(len(data['items']), 1)
+        self.assertEqual(data['page'], 1)
+        self.assertEqual(data['page_size'], 1)
+
+    def test_list_unauthorized(self):
+        """未登录返回 401"""
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 401)
+
+    def test_list_not_landlord(self):
+        """非商家（租客/管理员）返回 403"""
+        # 租客
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.tenant_token}')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 403)
+
+        # 管理员
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.admin_token}')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 403)
+
+    def test_list_order_by_created_at_desc(self):
+        """列表按提交时间倒序"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_a_token}')
+        response = self.client.get(self.url)
+        data = response.json()['data']
+        items = data['items']
+        ids = [item['id'] for item in items]
+        self.assertEqual(ids, sorted(ids, reverse=True))
+
+    def test_list_fields(self):
+        """返回字段与前端 MyApartmentsView.vue 对齐"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_a_token}')
+        response = self.client.get(self.url)
+        data = response.json()['data']
+        item = data['items'][0]
+        expected_fields = {
+            'id', 'apartment_id', 'apartment_name',
+            'type', 'type_display', 'status', 'status_display',
+            'reject_reason', 'created_at', 'updated_at',
+        }
+        self.assertTrue(expected_fields.issubset(set(item.keys())))
+
+    def test_list_reject_reason_for_rejected(self):
+        """已驳回记录包含 reject_reason"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_a_token}')
+        response = self.client.get(self.url)
+        data = response.json()['data']
+        rejected_item = next(item for item in data['items'] if item['status'] == 'rejected')
+        self.assertEqual(rejected_item['reject_reason'], '名称不符合规范')
+
+
 class AdminAuditListTests(TestCase):
     """管理员审核列表接口测试"""
 
