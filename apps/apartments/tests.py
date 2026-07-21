@@ -497,7 +497,7 @@ class MerchantApartmentListTests(TestCase):
 
     def setUp(self):
         self.client = APIClient()
-        self.url = '/api/v1/merchant/apartments/list/'
+        self.url = '/api/v1/merchant/apartments'
 
         # 创建行政区与街道
         self.district = District.objects.create(name='浦东新区', level=1, code='310115', sort=0)
@@ -665,7 +665,7 @@ class MerchantApartmentDetailTests(TestCase):
     def test_detail_success(self):
         """获取自有房源详情成功"""
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
-        response = self.client.get(f'/api/v1/merchant/apartments/{self.apartment.id}/')
+        response = self.client.get(f'/api/v1/merchant/apartments/{self.apartment.id}')
         self.assertEqual(response.status_code, 200)
         data = response.json()['data']
         self.assertEqual(data['id'], self.apartment.id)
@@ -679,13 +679,13 @@ class MerchantApartmentDetailTests(TestCase):
         """获取他人房源详情返回 404"""
         token = self._get_token(self.other_landlord)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
-        response = self.client.get(f'/api/v1/merchant/apartments/{self.apartment.id}/')
+        response = self.client.get(f'/api/v1/merchant/apartments/{self.apartment.id}')
         self.assertEqual(response.status_code, 404)
 
     def test_detail_not_found(self):
         """获取不存在的房源返回 404"""
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
-        response = self.client.get('/api/v1/merchant/apartments/99999/')
+        response = self.client.get('/api/v1/merchant/apartments/99999')
         self.assertEqual(response.status_code, 404)
 
     def test_detail_pending_audit(self):
@@ -698,7 +698,7 @@ class MerchantApartmentDetailTests(TestCase):
             changed_fields=['name'],
         )
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
-        response = self.client.get(f'/api/v1/merchant/apartments/{self.apartment.id}/')
+        response = self.client.get(f'/api/v1/merchant/apartments/{self.apartment.id}')
         data = response.json()['data']
         self.assertEqual(data['pending_audit'], True)
 
@@ -759,7 +759,7 @@ class MerchantApartmentUpdateTests(TestCase):
             'description': '新描述',
             'contact_phone': '13900139000',
         }
-        response = self.client.put(f'/api/v1/merchant/apartments/{self.apartment.id}/update/', payload, format='json')
+        response = self.client.put(f'/api/v1/merchant/apartments/{self.apartment.id}', payload, format='json')
         self.assertEqual(response.status_code, 200)
         data = response.json()['data']
         self.assertEqual(data['updated'], True)
@@ -775,7 +775,7 @@ class MerchantApartmentUpdateTests(TestCase):
         """变更名称触发 change_review 审核"""
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
         payload = {'name': '新公寓名称'}
-        response = self.client.put(f'/api/v1/merchant/apartments/{self.apartment.id}/update/', payload, format='json')
+        response = self.client.put(f'/api/v1/merchant/apartments/{self.apartment.id}', payload, format='json')
         self.assertEqual(response.status_code, 200)
         data = response.json()['data']
         self.assertEqual(data['updated'], False)
@@ -798,7 +798,7 @@ class MerchantApartmentUpdateTests(TestCase):
         """变更行政区触发 change_review 审核"""
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
         payload = {'district_id': self.district2.id, 'street_id': self.street2.id}
-        response = self.client.put(f'/api/v1/merchant/apartments/{self.apartment.id}/update/', payload, format='json')
+        response = self.client.put(f'/api/v1/merchant/apartments/{self.apartment.id}', payload, format='json')
         self.assertEqual(response.status_code, 200)
         data = response.json()['data']
         self.assertEqual(data['updated'], False)
@@ -811,7 +811,7 @@ class MerchantApartmentUpdateTests(TestCase):
         """变更详细地址触发 change_review 审核"""
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
         payload = {'detail_address': '新地址123号'}
-        response = self.client.put(f'/api/v1/merchant/apartments/{self.apartment.id}/update/', payload, format='json')
+        response = self.client.put(f'/api/v1/merchant/apartments/{self.apartment.id}', payload, format='json')
         self.assertEqual(response.status_code, 200)
         data = response.json()['data']
         self.assertEqual(data['updated'], False)
@@ -840,7 +840,7 @@ class MerchantApartmentUpdateTests(TestCase):
                 },
             ],
         }
-        response = self.client.put(f'/api/v1/merchant/apartments/{self.apartment.id}/update/', payload, format='json')
+        response = self.client.put(f'/api/v1/merchant/apartments/{self.apartment.id}', payload, format='json')
         self.assertEqual(response.status_code, 200)
         data = response.json()['data']
         self.assertEqual(data['updated'], True)
@@ -855,14 +855,14 @@ class MerchantApartmentUpdateTests(TestCase):
         """编辑他人房源返回 404"""
         token = self._get_token(self.other_landlord)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
-        response = self.client.put(f'/api/v1/merchant/apartments/{self.apartment.id}/update/', {'name': '新名称'}, format='json')
+        response = self.client.put(f'/api/v1/merchant/apartments/{self.apartment.id}', {'name': '新名称'}, format='json')
         self.assertEqual(response.status_code, 404)
 
     def test_update_invalid_district(self):
         """传入无效行政区返回 400"""
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
         payload = {'district_id': 99999, 'street_id': 99999}
-        response = self.client.put(f'/api/v1/merchant/apartments/{self.apartment.id}/update/', payload, format='json')
+        response = self.client.put(f'/api/v1/merchant/apartments/{self.apartment.id}', payload, format='json')
         self.assertEqual(response.status_code, 400)
 
 
@@ -912,7 +912,7 @@ class MerchantApartmentDeleteTests(TestCase):
     def test_delete_success(self):
         """删除自有房源成功，并软删除关联审核单"""
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
-        response = self.client.delete(f'/api/v1/merchant/apartments/{self.apartment.id}/delete/')
+        response = self.client.delete(f'/api/v1/merchant/apartments/{self.apartment.id}')
         self.assertEqual(response.status_code, 200)
         data = response.json()['data']
         self.assertEqual(data['deleted'], True)
@@ -929,10 +929,10 @@ class MerchantApartmentDeleteTests(TestCase):
         """删除他人房源返回 404"""
         token = self._get_token(self.other_landlord)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
-        response = self.client.delete(f'/api/v1/merchant/apartments/{self.apartment.id}/delete/')
+        response = self.client.delete(f'/api/v1/merchant/apartments/{self.apartment.id}')
         self.assertEqual(response.status_code, 404)
 
     def test_delete_unauthorized(self):
         """未登录返回 401"""
-        response = self.client.delete(f'/api/v1/merchant/apartments/{self.apartment.id}/delete/')
+        response = self.client.delete(f'/api/v1/merchant/apartments/{self.apartment.id}')
         self.assertEqual(response.status_code, 401)

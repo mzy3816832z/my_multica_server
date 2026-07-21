@@ -5,9 +5,12 @@ from django.urls import path
 from apps.apartments import views
 
 urlpatterns = [
-    path('apartments/', views.create_apartment, name='create-apartment'),
-    path('apartments/list/', views.merchant_apartment_list, name='merchant-apartment-list'),
-    path('apartments/<int:id>/', views.merchant_apartment_detail, name='merchant-apartment-detail'),
-    path('apartments/<int:id>/update/', views.merchant_apartment_update, name='merchant-apartment-update'),
-    path('apartments/<int:id>/delete/', views.merchant_apartment_delete, name='merchant-apartment-delete'),
+    # POST /api/v1/merchant/apartments  -> 发布房源
+    # GET  /api/v1/merchant/apartments  -> 商家已上架房源列表
+    path('apartments', views.merchant_apartments_dispatch, name='merchant-apartments'),
+
+    # GET    /api/v1/merchant/apartments/<id>  -> 详情
+    # PUT    /api/v1/merchant/apartments/<id>  -> 更新
+    # DELETE /api/v1/merchant/apartments/<id>  -> 删除
+    path('apartments/<int:id>', views.merchant_apartment_detail_dispatch, name='merchant-apartment-detail'),
 ]
