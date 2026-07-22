@@ -108,7 +108,7 @@ def test_dict_list_window_orientation(api_client, seed_dicts):
 def test_dict_list_missing_category(api_client):
     """测试未传 category 返回参数错误"""
     response = api_client.get('/api/v1/dicts/')
-    assert response.status_code == 400
+    assert response.status_code == 200
     data = response.json()
     assert data['code'] == 400001
 
@@ -117,7 +117,7 @@ def test_dict_list_missing_category(api_client):
 def test_dict_list_empty_category(api_client):
     """测试空 category 返回参数错误"""
     response = api_client.get('/api/v1/dicts/', {'category': ''})
-    assert response.status_code == 400
+    assert response.status_code == 200
     data = response.json()
     assert data['code'] == 400001
 

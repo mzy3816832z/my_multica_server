@@ -112,6 +112,10 @@ def custom_exception_handler(exc, context):
         elif isinstance(exc, Throttled):
             return unified_response(code=ErrorCode.TOO_MANY_REQUESTS, message=str(exc.detail), status_code=429)
 
+        elif isinstance(exc, BusinessException):
+            code = getattr(exc, 'custom_code', ErrorCode.SERVER_ERROR)
+            return unified_response(code=code, message=str(exc.detail), status_code=200)
+
         else:
             # 其他 DRF 异常
             code = getattr(exc, 'custom_code', ErrorCode.SERVER_ERROR)

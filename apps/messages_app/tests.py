@@ -153,7 +153,7 @@ class MessageReadTests(TestCase):
         """标记不存在的消息返回 404"""
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token}')
         response = self.client.post('/api/v1/messages/99999/read/')
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['code'], 404001)
 
     def test_read_other_user_message(self):
@@ -162,7 +162,7 @@ class MessageReadTests(TestCase):
         other_token = self._get_token(other)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {other_token}')
         response = self.client.post(f'/api/v1/messages/{self.msg.id}/read/')
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 200)
 
     def test_read_unauthorized(self):
         """未登录返回 401"""
