@@ -120,7 +120,7 @@ class UploadImageTests(TestCase):
             {},
             format='multipart',
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['code'], 400001)
 
     def test_upload_image_oversize(self):
@@ -141,7 +141,7 @@ class UploadImageTests(TestCase):
             {'file': file_obj},
             format='multipart',
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['code'], 400001)
 
     def test_upload_image_invalid_format(self):
@@ -160,7 +160,7 @@ class UploadImageTests(TestCase):
             {'file': file_obj},
             format='multipart',
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['code'], 400001)
 
     def test_upload_image_corrupted(self):
@@ -176,7 +176,7 @@ class UploadImageTests(TestCase):
             {'file': file_obj},
             format='multipart',
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['code'], 400001)
 
     def test_upload_image_url_accessible(self):

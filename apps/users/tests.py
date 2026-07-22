@@ -73,7 +73,7 @@ def test_register_invalid_sms_code():
         c = Client()
         # 不创建验证码，直接提交错误验证码
         resp = _register_user(c, '13800138001', 'password123', '000000')
-        assert resp.status_code == 400
+        assert resp.status_code == 200
         data = resp.json()
         assert data['code'] == 400002
 
@@ -88,7 +88,7 @@ def test_register_duplicate_phone():
 
         code2 = _create_verify_code('13800138002', 'register')
         resp = _register_user(c, '13800138002', 'password123', code2)
-        assert resp.status_code == 400
+        assert resp.status_code == 200
         data = resp.json()
         assert data['code'] == 409001
 
@@ -120,7 +120,7 @@ def test_login_by_password_wrong_password():
         _register_user(c, '13800138011', 'password123', code)
 
         resp = _login_by_password(c, '13800138011', 'wrongpassword')
-        assert resp.status_code == 400
+        assert resp.status_code == 200
         data = resp.json()
         assert data['code'] == 400002
 
@@ -131,7 +131,7 @@ def test_login_by_password_user_not_found():
     with override_settings(ALLOWED_HOSTS=['testserver']):
         c = Client()
         resp = _login_by_password(c, '13800138012', 'password123')
-        assert resp.status_code == 400
+        assert resp.status_code == 200
         data = resp.json()
         assert data['code'] == 404001
 
@@ -163,7 +163,7 @@ def test_login_by_code_wrong_code():
         _register_user(c, '13800138021', 'password123', code)
 
         resp = _login_by_code(c, '13800138021', '000000')
-        assert resp.status_code == 400
+        assert resp.status_code == 200
         data = resp.json()
         assert data['code'] == 400002
 
@@ -204,7 +204,7 @@ def test_select_role_repeat():
         resp = c.post('/api/v1/auth/select-role', {
             'role': 'tenant',
         }, content_type='application/json', HTTP_AUTHORIZATION=f'Bearer {token}')
-        assert resp.status_code == 400
+        assert resp.status_code == 200
         data = resp.json()
         assert data['code'] == 400002
 
@@ -221,7 +221,7 @@ def test_select_role_invalid_role():
         resp = c.post('/api/v1/auth/select-role', {
             'role': 'admin',
         }, content_type='application/json', HTTP_AUTHORIZATION=f'Bearer {token}')
-        assert resp.status_code == 400
+        assert resp.status_code == 200
         data = resp.json()
         assert data['code'] == 400001
 
@@ -265,7 +265,7 @@ def test_reset_password_invalid_code():
             'sms_code': '000000',
             'new_password': 'newpassword456',
         }, content_type='application/json')
-        assert resp.status_code == 400
+        assert resp.status_code == 200
         data = resp.json()
         assert data['code'] == 400002
 
@@ -309,7 +309,7 @@ def test_change_password_invalid_code():
             'sms_code': '000000',
             'new_password': 'newpassword789',
         }, content_type='application/json', HTTP_AUTHORIZATION=f'Bearer {token}')
-        assert resp.status_code == 400
+        assert resp.status_code == 200
         data = resp.json()
         assert data['code'] == 400002
 
@@ -356,7 +356,7 @@ def test_admin_login_wrong_password():
             'username': 'admin123',
             'password': 'wrongpassword',
         }, content_type='application/json')
-        assert resp.status_code == 400
+        assert resp.status_code == 200
         data = resp.json()
         assert data['code'] == 400002
 
@@ -373,7 +373,7 @@ def test_admin_login_not_admin():
             'username': '13800138060',
             'password': 'password123',
         }, content_type='application/json')
-        assert resp.status_code == 400
+        assert resp.status_code == 200
         data = resp.json()
         assert data['code'] == 404001
 

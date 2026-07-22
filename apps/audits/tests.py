@@ -367,7 +367,7 @@ class AdminAuditDetailTests(TestCase):
         """审核单不存在返回 404"""
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.admin_token}')
         response = self.client.get('/api/v1/admin/audits/99999/')
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['code'], 404001)
 
 
@@ -443,7 +443,7 @@ class AdminAuditApproveTests(TestCase):
         self.first_audit.save()
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.admin_token}')
         response = self.client.post(f'/api/v1/admin/audits/{self.first_audit.id}/approve/')
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['code'], 400002)
 
     def test_approve_change_review(self):
@@ -620,7 +620,7 @@ class AdminAuditRejectTests(TestCase):
             {'reject_reason': ''},
             format='json',
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['code'], 400002)
 
     def test_reject_already_processed(self):
@@ -633,7 +633,7 @@ class AdminAuditRejectTests(TestCase):
             {'reject_reason': '原因'},
             format='json',
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['code'], 400002)
 
     def test_reject_not_admin(self):

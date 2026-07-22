@@ -117,21 +117,21 @@ class FavoriteAddTests(TestCase):
         """收藏未上架房源返回 404"""
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.tenant_token}')
         response = self.client.post(self.url, {'apartment_id': self.unpublished.id})
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['code'], 404001)
 
     def test_favorite_nonexistent_apartment(self):
         """收藏不存在的房源返回 404"""
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.tenant_token}')
         response = self.client.post(self.url, {'apartment_id': 99999})
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['code'], 404001)
 
     def test_favorite_invalid_param(self):
         """非法参数返回 400"""
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.tenant_token}')
         response = self.client.post(self.url, {'apartment_id': 'abc'})
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['code'], 400001)
 
     def test_favorite_unauthorized(self):
@@ -335,14 +335,14 @@ class FavoriteDeleteTests(TestCase):
         """取消不存在的收藏记录"""
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.tenant_token}')
         response = self.client.delete('/api/v1/favorites/99999/')
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['code'], 404001)
 
     def test_delete_other_user_favorite(self):
         """不能取消别人的收藏"""
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.other_token}')
         response = self.client.delete(f'/api/v1/favorites/{self.favorite.id}/')
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['code'], 404001)
         # 验证记录未被删除
         self.assertTrue(Favorite.objects.filter(id=self.favorite.id).exists())

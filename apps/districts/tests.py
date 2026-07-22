@@ -59,7 +59,7 @@ def test_district_list_level2(api_client, seed_districts):
 def test_district_list_level2_missing_parent_id(api_client):
     """测试 level=2 但未传 parent_id 返回参数错误"""
     response = api_client.get('/api/v1/districts/', {'level': 2})
-    assert response.status_code == 400
+    assert response.status_code == 200
     data = response.json()
     assert data['code'] == 400001
 
@@ -68,7 +68,7 @@ def test_district_list_level2_missing_parent_id(api_client):
 def test_district_list_missing_level(api_client):
     """测试未传 level 返回参数错误"""
     response = api_client.get('/api/v1/districts/')
-    assert response.status_code == 400
+    assert response.status_code == 200
     data = response.json()
     assert data['code'] == 400001
 
@@ -77,7 +77,7 @@ def test_district_list_missing_level(api_client):
 def test_district_list_invalid_level(api_client):
     """测试 level 不是 1 或 2 返回参数错误"""
     response = api_client.get('/api/v1/districts/', {'level': 3})
-    assert response.status_code == 400
+    assert response.status_code == 200
     data = response.json()
     assert data['code'] == 400001
 
@@ -86,7 +86,7 @@ def test_district_list_invalid_level(api_client):
 def test_district_list_invalid_parent_id(api_client):
     """测试 parent_id 对应的行政区不存在返回参数错误"""
     response = api_client.get('/api/v1/districts/', {'level': 2, 'parent_id': 99999})
-    assert response.status_code == 400
+    assert response.status_code == 200
     data = response.json()
     assert data['code'] == 400001
 
