@@ -310,13 +310,23 @@ def _extract_first_error(errors):
         for key in errors:
             val = errors[key]
             if isinstance(val, list):
+                for item in val:
+                    if isinstance(item, dict):
+                        result = _extract_first_error(item)
+                        if result and result != '{}':
+                            return result
                 return str(val[0])
             elif isinstance(val, dict):
                 return _extract_first_error(val)
             else:
-                return str(val)
+                return str(val) if not hasattr(val, '__iter__') else str(val)
     elif isinstance(errors, list):
-        return str(errors[0])
+        for item in errors:
+            if isinstance(item, dict):
+                result = _extract_first_error(item)
+                if result and result != '{}':
+                    return result
+        return str(errors[0]) if errors else ''
     return str(errors)
 
 
