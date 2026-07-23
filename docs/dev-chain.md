@@ -21,3 +21,5 @@
 | 20 | feature/apartment-rental/step-20 | feature/apartment-rental/step-19 | 1108e86 | 2026-07-21 | 待合并 |
 | fix-dispatch | feature/apartment-rental/backend-fix-merchant-dispatch-v2 | feature/apartment-rental/backend-fix-dict-seed | 70366cc | 2026-07-21 | 已合并 |
 | fix-polish | feature/apartment-rental/backend-fix-polish | main | 72cbdc7 | 2026-07-21 | 已合并 |
+| 01-auth | feature/user-auth/step-01 | main | - | - | 待合并 |
+| 02-auth | feature/user-auth/step-02 | feature/user-auth/step-01 | a202b91 | 2026-07-23 | 待合并 |
