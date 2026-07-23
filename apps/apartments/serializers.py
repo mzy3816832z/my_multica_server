@@ -47,8 +47,8 @@ class ApartmentCreateSerializer(serializers.Serializer):
     """公寓发布请求序列化器"""
     name = serializers.CharField(
         max_length=50,
-        min_length=2,
-        help_text='公寓名称（2-50 字）',
+        min_length=1,
+        help_text='公寓名称（1-50 字）',
     )
     cover_image = serializers.CharField(max_length=500, help_text='公寓总览图 URL')
     description = serializers.CharField(
@@ -103,9 +103,9 @@ class ApartmentUpdateSerializer(serializers.Serializer):
     """公寓编辑请求序列化器"""
     name = serializers.CharField(
         max_length=50,
-        min_length=2,
+        min_length=1,
         required=False,
-        help_text='公寓名称（2-50 字）',
+        help_text='公寓名称（1-50 字）',
     )
     cover_image = serializers.CharField(max_length=500, required=False, help_text='公寓总览图 URL')
     description = serializers.CharField(
