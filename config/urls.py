@@ -11,7 +11,6 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 from core.views import health_check
-from django.views.decorators.csrf import csrf_exempt
 
 
 urlpatterns = [
