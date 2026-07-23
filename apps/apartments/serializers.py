@@ -15,7 +15,7 @@ class RoomTypeSerializer(serializers.Serializer):
     """房型序列化器（输入/输出）"""
     name = serializers.CharField(max_length=50, help_text='房型名称')
     images = serializers.ListField(
-        child=serializers.URLField(),
+        child=serializers.CharField(max_length=500),
         help_text='房型图片 URL 数组',
     )
     facilities = serializers.ListField(
@@ -50,7 +50,7 @@ class ApartmentCreateSerializer(serializers.Serializer):
         min_length=2,
         help_text='公寓名称（2-50 字）',
     )
-    cover_image = serializers.URLField(help_text='公寓总览图 URL')
+    cover_image = serializers.CharField(max_length=500, help_text='公寓总览图 URL')
     description = serializers.CharField(
         max_length=500,
         help_text='公寓描述（≤500 字）',
@@ -107,7 +107,7 @@ class ApartmentUpdateSerializer(serializers.Serializer):
         required=False,
         help_text='公寓名称（2-50 字）',
     )
-    cover_image = serializers.URLField(required=False, help_text='公寓总览图 URL')
+    cover_image = serializers.CharField(max_length=500, required=False, help_text='公寓总览图 URL')
     description = serializers.CharField(
         max_length=500,
         required=False,
@@ -250,7 +250,7 @@ class RoomTypeListSerializer(serializers.Serializer):
     id = serializers.IntegerField(help_text='房型 ID')
     name = serializers.CharField(max_length=50, help_text='房型名称')
     images = serializers.ListField(
-        child=serializers.URLField(),
+        child=serializers.CharField(max_length=500),
         help_text='房型图片 URL 数组',
     )
     facilities = serializers.ListField(
@@ -275,7 +275,7 @@ class RoomTypeDetailSerializer(serializers.Serializer):
     id = serializers.IntegerField(help_text='房型 ID')
     name = serializers.CharField(max_length=50, help_text='房型名称')
     images = serializers.ListField(
-        child=serializers.URLField(),
+        child=serializers.CharField(max_length=500),
         help_text='房型图片 URL 数组',
     )
     facilities = serializers.ListField(
