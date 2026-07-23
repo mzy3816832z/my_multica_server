@@ -12,8 +12,8 @@ class RegisterSerializer(serializers.Serializer):
 
 
 class LoginByPasswordSerializer(serializers.Serializer):
-    """手机号+密码登录请求序列化器"""
-    phone = serializers.CharField(max_length=11, min_length=11, help_text='手机号，11位数字')
+    """用户名+密码登录请求序列化器"""
+    username = serializers.CharField(max_length=50, help_text='用户名（普通用户为手机号）')
     password = serializers.CharField(max_length=128, help_text='密码')
 
 
@@ -42,12 +42,6 @@ class ChangePasswordSerializer(serializers.Serializer):
     """修改密码请求序列化器"""
     sms_code = serializers.CharField(max_length=6, min_length=6, help_text='短信验证码')
     new_password = serializers.CharField(max_length=128, min_length=6, help_text='新密码，至少6位')
-
-
-class AdminLoginSerializer(serializers.Serializer):
-    """管理员账号登录请求序列化器"""
-    username = serializers.CharField(max_length=50, help_text='管理员账号')
-    password = serializers.CharField(max_length=128, help_text='密码')
 
 
 class TokenResponseSerializer(serializers.Serializer):

@@ -32,10 +32,10 @@ def _register_user(client, phone, password, sms_code):
     }, content_type='application/json')
 
 
-def _login_by_password(client, phone, password):
-    """密码登录，返回响应"""
+def _login_by_password(client, username, password):
+    """用户名+密码登录，返回响应"""
     return client.post('/api/v1/auth/login-by-password', {
-        'phone': phone,
+        'username': username,
         'password': password,
     }, content_type='application/json')
 
@@ -314,7 +314,7 @@ def test_change_password_invalid_code():
         assert data['code'] == 400002
 
 
-# ---------- 管理员登录 ----------
+# ---------- 管理员登录（统一使用 login-by-password） ----------
 
 def _create_admin_user():
     """创建管理员用户用于测试"""
@@ -330,14 +330,11 @@ def _create_admin_user():
 
 @pytest.mark.django_db
 def test_admin_login_success():
-    """管理员登录成功"""
+    """管理员通过 login-by-password 登录成功"""
     _create_admin_user()
     with override_settings(ALLOWED_HOSTS=['testserver']):
         c = Client()
-        resp = c.post('/api/v1/auth/admin-login', {
-            'username': 'admin123',
-            'password': '3816832z',
-        }, content_type='application/json')
+        resp = _login_by_password(c, 'admin123', '3816832z')
         assert resp.status_code == 200
         data = resp.json()
         assert data['code'] == 0
@@ -348,34 +345,14 @@ def test_admin_login_success():
 
 @pytest.mark.django_db
 def test_admin_login_wrong_password():
-    """管理员密码错误"""
+    """管理员通过 login-by-password 密码错误"""
     _create_admin_user()
     with override_settings(ALLOWED_HOSTS=['testserver']):
         c = Client()
-        resp = c.post('/api/v1/auth/admin-login', {
-            'username': 'admin123',
-            'password': 'wrongpassword',
-        }, content_type='application/json')
+        resp = _login_by_password(c, 'admin123', 'wrongpassword')
         assert resp.status_code == 200
         data = resp.json()
         assert data['code'] == 400002
-
-
-@pytest.mark.django_db
-def test_admin_login_not_admin():
-    """非管理员账号登录管理员接口"""
-    with override_settings(ALLOWED_HOSTS=['testserver']):
-        c = Client()
-        code = _create_verify_code('13800138060', 'register')
-        _register_user(c, '13800138060', 'password123', code)
-
-        resp = c.post('/api/v1/auth/admin-login', {
-            'username': '13800138060',
-            'password': 'password123',
-        }, content_type='application/json')
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data['code'] == 404001
 
 
 # ---------- 获取当前用户 ----------

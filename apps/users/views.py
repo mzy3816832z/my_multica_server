@@ -21,7 +21,6 @@ from apps.users.serializers import (
     SelectRoleSerializer,
     ResetPasswordSerializer,
     ChangePasswordSerializer,
-    AdminLoginSerializer,
     TokenResponseSerializer,
     UserSerializer,
 )
@@ -83,14 +82,15 @@ def register(request):
     if not verify_sms_code(phone, 'register', sms_code, mark_used=True):
         raise BusinessException('验证码错误或已过期', code=400002)
 
-    # 检查手机号是否已注册
-    if User.objects.filter(phone=phone).exists():
+    # 检查是否已注册（username 即手机号）
+    if User.objects.filter(username=phone).exists():
         raise BusinessException('该手机号已注册', code=409001)
 
-    # 创建用户，role 为空字符串（表示未选择身份）
+    # 创建用户，username 写入手机号，role 为空字符串（表示未选择身份）
     user = User.objects.create(
+        username=phone,
         phone=phone,
-        role='',  # 注册成功后 role 为空
+        role='',
         is_active=True,
     )
     user.set_password(password)
@@ -112,8 +112,8 @@ def register(request):
 @extend_schema(
     request=LoginByPasswordSerializer,
     responses={200: TokenResponseSerializer},
-    summary='手机号+密码登录',
-    description='手机号+密码登录，返回 token 与用户信息。role 为空时需前端跳转身份选择。',
+    summary='用户名+密码登录',
+    description='用户名+密码登录（普通用户用户名为手机号），返回 token 与用户信息。role 为空时需前端跳转身份选择。',
     tags=['认证'],
 )
 @api_view(['POST'])
@@ -121,31 +121,28 @@ def register(request):
 def login_by_password(request):
     """
     POST /api/v1/auth/login-by-password
-    手机号+密码登录
+    用户名+密码登录
     """
     serializer = LoginByPasswordSerializer(data=request.data)
     if not serializer.is_valid():
         raise ParamErrorException(serializer.errors)
 
-    phone = serializer.validated_data['phone']
+    username = serializer.validated_data['username']
     password = serializer.validated_data['password']
 
-    if not phone.isdigit():
-        raise ParamErrorException('手机号格式不正确')
-
     try:
-        user = User.objects.get(phone=phone)
+        user = User.objects.get(username=username)
     except User.DoesNotExist:
-        raise BusinessException('用户不存在', code=404001)
+        raise BusinessException('用户名或密码错误', code=404001)
 
     if not user.check_password(password):
-        raise BusinessException('密码错误', code=400002)
+        raise BusinessException('用户名或密码错误', code=400002)
 
     if not user.is_active:
         raise BusinessException('账号已被禁用', code=403001)
 
     tokens = _generate_tokens(user)
-    logger.info(f'[LoginByPassword] user={user.id}, phone={phone}')
+    logger.info(f'[LoginByPassword] user={user.id}, username={username}')
 
     return unified_response(
         data={
@@ -186,7 +183,7 @@ def login_by_code(request):
         raise BusinessException('验证码错误或已过期', code=400002)
 
     try:
-        user = User.objects.get(phone=phone)
+        user = User.objects.get(username=phone)
     except User.DoesNotExist:
         raise BusinessException('用户不存在', code=404001)
 
@@ -271,7 +268,7 @@ def reset_password(request):
         raise BusinessException('验证码错误或已过期', code=400002)
 
     try:
-        user = User.objects.get(phone=phone)
+        user = User.objects.get(username=phone)
     except User.DoesNotExist:
         raise BusinessException('用户不存在', code=404001)
 
@@ -322,54 +319,6 @@ def change_password(request):
 
     return unified_response(
         data={'success': True},
-        code=ErrorCode.SUCCESS,
-    )
-
-
-@extend_schema(
-    request=AdminLoginSerializer,
-    responses={200: TokenResponseSerializer},
-    summary='管理员账号登录',
-    description='管理员使用 username + password 登录。',
-    tags=['认证'],
-)
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def admin_login(request):
-    """
-    POST /api/v1/auth/admin-login
-    管理员账号登录
-    """
-    serializer = AdminLoginSerializer(data=request.data)
-    if not serializer.is_valid():
-        raise ParamErrorException(serializer.errors)
-
-    username = serializer.validated_data['username']
-    password = serializer.validated_data['password']
-
-    try:
-        user = User.objects.get(username=username)
-    except User.DoesNotExist:
-        raise BusinessException('管理员账号不存在', code=404001)
-
-    if not user.check_password(password):
-        raise BusinessException('密码错误', code=400002)
-
-    if not user.is_active:
-        raise BusinessException('账号已被禁用', code=403001)
-
-    if user.role != 'admin':
-        raise BusinessException('非管理员账号', code=403001)
-
-    tokens = _generate_tokens(user)
-    logger.info(f'[AdminLogin] user={user.id}, username={username}')
-
-    return unified_response(
-        data={
-            'access_token': tokens['access_token'],
-            'refresh_token': tokens['refresh_token'],
-            'user': _user_to_dict(user),
-        },
         code=ErrorCode.SUCCESS,
     )
 

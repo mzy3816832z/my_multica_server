@@ -45,8 +45,7 @@ class User(AbstractBaseUser, BaseModel):
         max_length=11,
         null=True,
         blank=True,
-        unique=True,
-        verbose_name='手机号',
+        verbose_name='手机号（个人信息，非登录标识）',
     )
     role = models.CharField(
         max_length=20,
