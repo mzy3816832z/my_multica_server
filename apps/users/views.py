@@ -2,17 +2,14 @@
 用户认证相关视图：注册、登录、身份选择、密码管理等
 """
 import logging
-from django.utils import timezone
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework import serializers
 from drf_spectacular.utils import extend_schema
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from core.response import unified_response, ErrorCode
-from core.exceptions import ParamErrorException, BusinessException, UnauthorizedException
-from core.verify_code import verify_sms_code
-from core.permissions import IsTenant, IsLandlord, IsAdmin
+from core.exceptions import ParamErrorException, BusinessException
+from core.verify_code import verify_sms_code, create_and_send_sms_code
 from apps.users.models import User
 from apps.users.serializers import (
     RegisterSerializer,
@@ -21,6 +18,9 @@ from apps.users.serializers import (
     SelectRoleSerializer,
     ResetPasswordSerializer,
     ChangePasswordSerializer,
+    AdminLoginSerializer,
+    SmsCodeRequestSerializer,
+    SmsCodeResponseSerializer,
     TokenResponseSerializer,
     UserSerializer,
 )
@@ -50,6 +50,39 @@ def _user_to_dict(user: User) -> dict:
         'role': user.role,
         'is_active': user.is_active,
     }
+
+
+@extend_schema(
+    request=SmsCodeRequestSerializer,
+    responses={200: SmsCodeResponseSerializer},
+    summary='发送短信验证码',
+    description='发送短信验证码，含频控：1分钟限发1次，1小时限发10次。V1.0 为 mock 模式。',
+    tags=['认证'],
+)
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def send_sms_code(request):
+    """
+    POST /api/v1/auth/sms-code
+    发送短信验证码
+    """
+    serializer = SmsCodeRequestSerializer(data=request.data)
+    if not serializer.is_valid():
+        raise ParamErrorException(serializer.errors)
+
+    phone = serializer.validated_data['phone']
+    purpose = serializer.validated_data['purpose']
+
+    # 校验手机号格式（纯数字）
+    if not phone.isdigit():
+        raise ParamErrorException('手机号格式不正确')
+
+    result = create_and_send_sms_code(phone, purpose)
+
+    return unified_response(
+        data={'expires_in': result['expires_in']},
+        code=ErrorCode.SUCCESS,
+    )
 
 
 @extend_schema(
@@ -204,6 +237,54 @@ def login_by_code(request):
 
 
 @extend_schema(
+    request=AdminLoginSerializer,
+    responses={200: TokenResponseSerializer},
+    summary='管理员登录',
+    description='管理员通过用户名+密码登录。',
+    tags=['认证'],
+)
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def admin_login(request):
+    """
+    POST /api/v1/auth/admin-login
+    管理员登录
+    """
+    serializer = AdminLoginSerializer(data=request.data)
+    if not serializer.is_valid():
+        raise ParamErrorException(serializer.errors)
+
+    username = serializer.validated_data['username']
+    password = serializer.validated_data['password']
+
+    try:
+        user = User.objects.get(username=username)
+    except User.DoesNotExist:
+        raise BusinessException('用户名或密码错误', code=404001)
+
+    if user.role != 'admin':
+        raise BusinessException('该账号非管理员', code=403001)
+
+    if not user.check_password(password):
+        raise BusinessException('用户名或密码错误', code=400002)
+
+    if not user.is_active:
+        raise BusinessException('账号已被禁用', code=403001)
+
+    tokens = _generate_tokens(user)
+    logger.info(f'[AdminLogin] user={user.id}, username={username}')
+
+    return unified_response(
+        data={
+            'access_token': tokens['access_token'],
+            'refresh_token': tokens['refresh_token'],
+            'user': _user_to_dict(user),
+        },
+        code=ErrorCode.SUCCESS,
+    )
+
+
+@extend_schema(
     request=SelectRoleSerializer,
     responses={200: UserSerializer},
     summary='首次登录选择身份',
@@ -339,65 +420,5 @@ def me(request):
     user = request.user
     return unified_response(
         data=_user_to_dict(user),
-        code=ErrorCode.SUCCESS,
-    )
-"""
-用户认证相关视图：短信验证码、注册、登录等
-"""
-import logging
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
-from rest_framework import serializers
-from drf_spectacular.utils import extend_schema
-from core.response import unified_response, ErrorCode
-from core.exceptions import ParamErrorException
-from core.verify_code import create_and_send_sms_code
-
-logger = logging.getLogger('apps')
-
-
-class SmsCodeRequestSerializer(serializers.Serializer):
-    """短信验证码请求序列化器"""
-    phone = serializers.CharField(max_length=11, min_length=11, help_text='手机号，11位数字')
-    purpose = serializers.ChoiceField(
-        choices=['register', 'login', 'reset_password', 'change_password'],
-        help_text='验证码用途',
-    )
-
-
-class SmsCodeResponseSerializer(serializers.Serializer):
-    """短信验证码响应序列化器"""
-    expires_in = serializers.IntegerField(help_text='有效期（秒）')
-
-
-@extend_schema(
-    request=SmsCodeRequestSerializer,
-    responses={200: SmsCodeResponseSerializer},
-    summary='发送短信验证码',
-    description='发送短信验证码，含频控：1分钟限发1次，1小时限发10次。V1.0 为 mock 模式。',
-    tags=['认证'],
-)
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def send_sms_code(request):
-    """
-    POST /api/v1/auth/sms-code
-    发送短信验证码
-    """
-    serializer = SmsCodeRequestSerializer(data=request.data)
-    if not serializer.is_valid():
-        raise ParamErrorException(serializer.errors)
-
-    phone = serializer.validated_data['phone']
-    purpose = serializer.validated_data['purpose']
-
-    # 校验手机号格式（纯数字）
-    if not phone.isdigit():
-        raise ParamErrorException('手机号格式不正确')
-
-    result = create_and_send_sms_code(phone, purpose)
-
-    return unified_response(
-        data={'expires_in': result['expires_in']},
         code=ErrorCode.SUCCESS,
     )

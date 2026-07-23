@@ -51,6 +51,26 @@ class TokenResponseSerializer(serializers.Serializer):
     user = serializers.DictField(help_text='用户信息')
 
 
+class SmsCodeRequestSerializer(serializers.Serializer):
+    """短信验证码请求序列化器"""
+    phone = serializers.CharField(max_length=11, min_length=11, help_text='手机号，11位数字')
+    purpose = serializers.ChoiceField(
+        choices=['register', 'login', 'reset_password', 'change_password'],
+        help_text='验证码用途',
+    )
+
+
+class SmsCodeResponseSerializer(serializers.Serializer):
+    """短信验证码响应序列化器"""
+    expires_in = serializers.IntegerField(help_text='有效期（秒）')
+
+
+class AdminLoginSerializer(serializers.Serializer):
+    """管理员登录请求序列化器"""
+    username = serializers.CharField(max_length=50, help_text='管理员用户名')
+    password = serializers.CharField(max_length=128, help_text='密码')
+
+
 class UserSerializer(serializers.Serializer):
     """用户信息序列化器"""
     id = serializers.IntegerField(help_text='用户ID')

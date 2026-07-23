@@ -11,10 +11,7 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 from core.views import health_check
-from django.views.decorators.csrf import csrf_exempt
-
-
-urlpatterns = csrf_exempt([
+urlpatterns = [
     path('admin/', admin.site.urls),
     path('health', health_check, name='health'),
     path('api/v1/auth/', include('apps.users.urls')),
@@ -32,7 +29,6 @@ urlpatterns = csrf_exempt([
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
 ]
-)
 # 静态文件服务：生产环境通过 Nginx 代理，开发环境由 Django 提供
 # 无论 DEBUG 模式如何，都注册 /uploads/ 路由，确保图片可访问
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
