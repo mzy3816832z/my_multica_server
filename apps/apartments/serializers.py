@@ -25,7 +25,7 @@ class RoomTypeSerializer(serializers.Serializer):
     )
     layout_type = serializers.CharField(max_length=30, help_text='户型编码')
     window_type = serializers.CharField(max_length=30, help_text='内外窗编码')
-    orientation = serializers.CharField(max_length=30, help_text='朝向编码')
+    orientation = serializers.CharField(max_length=30, required=False, allow_blank=True, default='', help_text='朝向编码')
     floor = serializers.IntegerField(min_value=1, help_text='楼层，必须≥1')
     sort = serializers.IntegerField(default=0, help_text='展示排序')
     rental_plans = RentalPlanSerializer(many=True, help_text='租期租金方案列表')
