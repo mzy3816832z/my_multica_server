@@ -23,3 +23,4 @@
 | fix-polish | feature/apartment-rental/backend-fix-polish | main | 72cbdc7 | 2026-07-21 | 已合并 |
 | 01-auth | feature/user-auth/step-01 | main | - | - | 已合并 |
 | 02-auth | feature/user-auth/step-02 | feature/user-auth/step-01 | a202b91 | 2026-07-23 | 已合并 |
+| fix-cover-image | agent/multica-agent-python-django-re/d29290d3 | main | e5ebaa4 | 2026-07-23 | 已合并 |
