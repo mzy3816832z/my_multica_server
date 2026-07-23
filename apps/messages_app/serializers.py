@@ -2,6 +2,7 @@
 消息模块序列化器
 """
 from rest_framework import serializers
+from core.fields import TimestampField
 
 
 class MessageListItemSerializer(serializers.Serializer):
@@ -14,7 +15,7 @@ class MessageListItemSerializer(serializers.Serializer):
     related_apartment_id = serializers.IntegerField(help_text='关联房源 ID')
     related_audit_id = serializers.IntegerField(help_text='关联审核单 ID', allow_null=True)
     is_read = serializers.BooleanField(help_text='是否已读')
-    created_at = serializers.DateTimeField(help_text='创建时间')
+    created_at = TimestampField(help_text='创建时间')
 
     def get_type_display(self, obj):
         return obj.get_type_display()

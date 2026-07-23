@@ -2,6 +2,7 @@
 审核模块序列化器
 """
 from rest_framework import serializers
+from core.fields import TimestampField
 
 
 class AuditListItemSerializer(serializers.Serializer):
@@ -15,8 +16,8 @@ class AuditListItemSerializer(serializers.Serializer):
     status = serializers.CharField(max_length=30, help_text='审核状态')
     status_display = serializers.SerializerMethodField(help_text='审核状态展示')
     landlord_name = serializers.SerializerMethodField(help_text='商家名称')
-    created_at = serializers.DateTimeField(help_text='提交时间')
-    updated_at = serializers.DateTimeField(help_text='更新时间')
+    created_at = TimestampField(help_text='提交时间')
+    updated_at = TimestampField(help_text='更新时间')
 
     def get_apartment_name(self, obj):
         return obj.apartment.name if obj.apartment else None
@@ -46,8 +47,8 @@ class MerchantAuditListItemSerializer(serializers.Serializer):
     status = serializers.CharField(max_length=30, help_text='审核状态')
     status_display = serializers.SerializerMethodField(help_text='审核状态展示')
     reject_reason = serializers.CharField(max_length=500, help_text='驳回原因', required=False)
-    created_at = serializers.DateTimeField(help_text='提交时间')
-    updated_at = serializers.DateTimeField(help_text='更新时间')
+    created_at = TimestampField(help_text='提交时间')
+    updated_at = TimestampField(help_text='更新时间')
 
     def get_apartment_name(self, obj):
         return obj.apartment.name if obj.apartment else None
@@ -76,8 +77,8 @@ class AuditDetailSerializer(serializers.Serializer):
     changed_fields = serializers.JSONField(help_text='变更字段名列表', required=False)
     reject_reason = serializers.CharField(max_length=500, help_text='驳回原因', required=False)
     reviewer_id = serializers.IntegerField(help_text='审核管理员 ID', allow_null=True)
-    created_at = serializers.DateTimeField(help_text='提交时间')
-    updated_at = serializers.DateTimeField(help_text='更新时间')
+    created_at = TimestampField(help_text='提交时间')
+    updated_at = TimestampField(help_text='更新时间')
 
     def get_apartment_name(self, obj):
         return obj.apartment.name if obj.apartment else None

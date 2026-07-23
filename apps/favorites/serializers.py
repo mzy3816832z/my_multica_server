@@ -2,6 +2,7 @@
 收藏模块序列化器
 """
 from rest_framework import serializers
+from core.fields import TimestampField
 
 
 class FavoriteCreateSerializer(serializers.Serializer):
@@ -13,7 +14,7 @@ class FavoriteCreateResponseSerializer(serializers.Serializer):
     """添加收藏响应序列化器"""
     id = serializers.IntegerField(help_text='收藏记录 ID')
     apartment_id = serializers.IntegerField(help_text='公寓 ID')
-    created_at = serializers.DateTimeField(help_text='收藏时间')
+    created_at = TimestampField(help_text='收藏时间')
 
 
 class FavoriteListItemSerializer(serializers.Serializer):
@@ -25,4 +26,4 @@ class FavoriteListItemSerializer(serializers.Serializer):
     district_name = serializers.CharField(help_text='行政区名称')
     street_name = serializers.CharField(help_text='街道/镇名称')
     min_monthly_rent = serializers.IntegerField(help_text='最低月租金（元）', allow_null=True)
-    created_at = serializers.DateTimeField(help_text='收藏时间')
+    created_at = TimestampField(help_text='收藏时间')

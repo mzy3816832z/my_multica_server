@@ -2,6 +2,7 @@
 房源模块序列化器
 """
 from rest_framework import serializers
+from core.fields import TimestampField
 
 
 class RentalPlanSerializer(serializers.Serializer):
@@ -167,8 +168,8 @@ class MerchantApartmentListSerializer(serializers.Serializer):
     detail_address = serializers.CharField(max_length=200, help_text='详细门牌号')
     min_monthly_rent = serializers.IntegerField(help_text='最低月租金（元）')
     status = serializers.CharField(max_length=30, help_text='房源状态')
-    created_at = serializers.DateTimeField(help_text='创建时间')
-    updated_at = serializers.DateTimeField(help_text='更新时间')
+    created_at = TimestampField(help_text='创建时间')
+    updated_at = TimestampField(help_text='更新时间')
 
     def get_district_name(self, obj):
         return obj.district.name if obj.district else None
@@ -191,8 +192,8 @@ class MerchantApartmentDetailSerializer(serializers.Serializer):
     contact_phone = serializers.CharField(max_length=11, help_text='联系电话')
     min_monthly_rent = serializers.IntegerField(help_text='最低月租金（元）')
     status = serializers.CharField(max_length=30, help_text='房源状态')
-    created_at = serializers.DateTimeField(help_text='创建时间')
-    updated_at = serializers.DateTimeField(help_text='更新时间')
+    created_at = TimestampField(help_text='创建时间')
+    updated_at = TimestampField(help_text='更新时间')
     room_types = serializers.SerializerMethodField(help_text='房型列表')
     pending_audit = serializers.SerializerMethodField(help_text='是否有待审核变更')
 
