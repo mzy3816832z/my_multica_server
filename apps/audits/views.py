@@ -2,27 +2,28 @@
 管理员审核模块视图
 """
 import logging
+
 from django.db import transaction
+from drf_spectacular.utils import extend_schema
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
-from drf_spectacular.utils import extend_schema
 
-from core.response import unified_response, ErrorCode
-from core.exceptions import BusinessException, NotFoundException
-from core.permissions import IsAdmin, IsLandlord
-from core.pagination import StandardPagination
-from core.sms import send_sms
+from apps.apartments.models import RentalPlan, RoomType
 from apps.audits.models import AuditRecord
 from apps.audits.serializers import (
-    AuditListItemSerializer,
-    MerchantAuditListItemSerializer,
-    AuditDetailSerializer,
-    AuditApproveSerializer,
-    AuditRejectSerializer,
     AuditActionResponseSerializer,
+    AuditApproveSerializer,
+    AuditDetailSerializer,
+    AuditListItemSerializer,
+    AuditRejectSerializer,
+    MerchantAuditListItemSerializer,
 )
-from apps.apartments.models import RoomType, RentalPlan
 from apps.messages_app.models import Message
+from core.exceptions import BusinessException, NotFoundException
+from core.pagination import StandardPagination
+from core.permissions import IsAdmin, IsLandlord
+from core.response import ErrorCode, unified_response
+from core.sms import send_sms
 
 logger = logging.getLogger('apps')
 
@@ -35,9 +36,10 @@ logger = logging.getLogger('apps')
     request=None,
     responses={200: MerchantAuditListItemSerializer(many=True)},
     summary='商家审核记录列表',
-    description='商家查看自有房源的审核记录列表。仅 landlord 角色可访问，只能查看自己的房源审核记录。支持分页，按提交时间倒序。',
+    description='商家查看自有房源的审核记录列表。仅 landlord 角色可访问，只能查看自己的房源审核记录。支持分页、按房源名称 keyword 搜索，按提交时间倒序。',
     tags=['商家审核'],
     parameters=[
+        {'name': 'keyword', 'in': 'query', 'schema': {'type': 'string'}, 'description': '房源名称关键词，支持模糊匹配'},
         {'name': 'page', 'in': 'query', 'schema': {'type': 'integer'}, 'description': '页码，默认 1'},
         {'name': 'page_size', 'in': 'query', 'schema': {'type': 'integer'}, 'description': '每页条数，默认 10，最大 100'},
     ],
@@ -54,6 +56,11 @@ def merchant_audit_list(request):
         apartment__landlord=request.user,
     ).order_by('-created_at', '-id')
 
+    # 按房源名称搜索
+    keyword = request.query_params.get('keyword')
+    if keyword:
+        queryset = queryset.filter(apartment__name__icontains=keyword)
+
     paginator = StandardPagination()
     page = paginator.paginate_queryset(queryset, request)
     serializer = MerchantAuditListItemSerializer(page, many=True)
@@ -68,11 +75,12 @@ def merchant_audit_list(request):
     request=None,
     responses={200: AuditListItemSerializer(many=True)},
     summary='审核单列表',
-    description='管理员查看审核单列表。支持按 type、status 筛选，按提交时间倒序。',
+    description='管理员查看审核单列表。支持按 type、status 筛选，支持按房源名称 keyword 搜索，按提交时间倒序。',
     tags=['管理员审核'],
     parameters=[
         {'name': 'type', 'in': 'query', 'schema': {'type': 'string'}, 'description': '审核类型：first_review / change_review'},
         {'name': 'status', 'in': 'query', 'schema': {'type': 'string'}, 'description': '审核状态：pending / approved / rejected'},
+        {'name': 'keyword', 'in': 'query', 'schema': {'type': 'string'}, 'description': '房源名称关键词，支持模糊匹配'},
         {'name': 'page', 'in': 'query', 'schema': {'type': 'integer'}, 'description': '页码，默认 1'},
         {'name': 'page_size', 'in': 'query', 'schema': {'type': 'integer'}, 'description': '每页条数，默认 10，最大 100'},
     ],
@@ -95,6 +103,11 @@ def audit_list(request):
     audit_status = request.query_params.get('status')
     if audit_status:
         queryset = queryset.filter(status=audit_status)
+
+    # 按房源名称搜索
+    keyword = request.query_params.get('keyword')
+    if keyword:
+        queryset = queryset.filter(apartment__name__icontains=keyword)
 
     paginator = StandardPagination()
     page = paginator.paginate_queryset(queryset, request)

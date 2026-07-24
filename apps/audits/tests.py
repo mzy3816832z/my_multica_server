@@ -5,11 +5,11 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from apps.users.models import User
-from apps.districts.models import District
-from apps.apartments.models import Apartment, RoomType, RentalPlan
+from apps.apartments.models import Apartment, RentalPlan, RoomType
 from apps.audits.models import AuditRecord
+from apps.districts.models import District
 from apps.messages_app.models import Message
+from apps.users.models import User
 
 
 class MerchantAuditListTests(TestCase):
@@ -134,6 +134,49 @@ class MerchantAuditListTests(TestCase):
         self.assertEqual(len(data['items']), 1)
         self.assertEqual(data['page'], 1)
         self.assertEqual(data['page_size'], 1)
+
+    def test_list_filter_by_keyword(self):
+        """按房源名称 keyword 搜索"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_a_token}')
+        response = self.client.get(self.url, {'keyword': '商家A公寓1'})
+        data = response.json()['data']
+        self.assertEqual(data['total'], 1)
+        self.assertEqual(data['items'][0]['id'], self.audit_a1.id)
+
+    def test_list_filter_by_keyword_no_match(self):
+        """keyword 无匹配时返回空列表"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_a_token}')
+        response = self.client.get(self.url, {'keyword': '不存在的公寓'})
+        data = response.json()['data']
+        self.assertEqual(data['total'], 0)
+        self.assertEqual(len(data['items']), 0)
+
+    def test_list_filter_by_keyword_empty(self):
+        """空 keyword 时返回全部记录"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_a_token}')
+        response = self.client.get(self.url, {'keyword': ''})
+        data = response.json()['data']
+        self.assertEqual(data['total'], 2)
+
+    def test_list_filter_by_keyword_icontains(self):
+        """keyword 支持模糊匹配（子串匹配）"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_a_token}')
+        response = self.client.get(self.url, {'keyword': '公寓2'})
+        data = response.json()['data']
+        self.assertEqual(data['total'], 1)
+        self.assertEqual(data['items'][0]['id'], self.audit_a2.id)
+
+    def test_list_filter_combined(self):
+        """keyword 与 type、status 组合筛选"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_a_token}')
+        response = self.client.get(self.url, {
+            'keyword': '商家A公寓1',
+            'type': 'first_review',
+            'status': 'pending',
+        })
+        data = response.json()['data']
+        self.assertEqual(data['total'], 1)
+        self.assertEqual(data['items'][0]['id'], self.audit_a1.id)
 
     def test_list_unauthorized(self):
         """未登录返回 401"""
@@ -286,6 +329,49 @@ class AdminAuditListTests(TestCase):
         self.change_audit.save()
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.admin_token}')
         response = self.client.get(self.url, {'status': 'pending'})
+        data = response.json()['data']
+        self.assertEqual(data['total'], 1)
+        self.assertEqual(data['items'][0]['id'], self.first_audit.id)
+
+    def test_list_filter_by_keyword(self):
+        """按房源名称 keyword 搜索"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.admin_token}')
+        response = self.client.get(self.url, {'keyword': '测试公寓'})
+        data = response.json()['data']
+        self.assertEqual(data['total'], 1)
+        self.assertEqual(data['items'][0]['id'], self.first_audit.id)
+
+    def test_list_filter_by_keyword_no_match(self):
+        """keyword 无匹配时返回空列表"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.admin_token}')
+        response = self.client.get(self.url, {'keyword': '不存在的公寓'})
+        data = response.json()['data']
+        self.assertEqual(data['total'], 0)
+        self.assertEqual(len(data['items']), 0)
+
+    def test_list_filter_by_keyword_empty(self):
+        """空 keyword 时返回全部记录"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.admin_token}')
+        response = self.client.get(self.url, {'keyword': ''})
+        data = response.json()['data']
+        self.assertEqual(data['total'], 2)
+
+    def test_list_filter_by_keyword_icontains(self):
+        """keyword 支持模糊匹配（子串匹配）"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.admin_token}')
+        response = self.client.get(self.url, {'keyword': '上架'})
+        data = response.json()['data']
+        self.assertEqual(data['total'], 1)
+        self.assertEqual(data['items'][0]['id'], self.change_audit.id)
+
+    def test_list_filter_combined(self):
+        """keyword 与 type、status 组合筛选"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.admin_token}')
+        response = self.client.get(self.url, {
+            'keyword': '测试公寓',
+            'type': 'first_review',
+            'status': 'pending',
+        })
         data = response.json()['data']
         self.assertEqual(data['total'], 1)
         self.assertEqual(data['items'][0]['id'], self.first_audit.id)
