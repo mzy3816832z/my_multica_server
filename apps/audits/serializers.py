@@ -68,6 +68,8 @@ class AuditDetailSerializer(serializers.Serializer):
     id = serializers.IntegerField(help_text='审核单 ID')
     apartment_id = serializers.IntegerField(help_text='关联房源 ID')
     apartment_name = serializers.SerializerMethodField(help_text='公寓名称')
+    district_name = serializers.SerializerMethodField(help_text='行政区名称')
+    street_name = serializers.SerializerMethodField(help_text='街道/镇名称')
     type = serializers.CharField(max_length=30, help_text='审核类型')
     type_display = serializers.SerializerMethodField(help_text='审核类型展示')
     status = serializers.CharField(max_length=30, help_text='审核状态')
@@ -82,6 +84,12 @@ class AuditDetailSerializer(serializers.Serializer):
 
     def get_apartment_name(self, obj):
         return obj.apartment.name if obj.apartment else None
+
+    def get_district_name(self, obj):
+        return obj.apartment.district.name if obj.apartment and obj.apartment.district else None
+
+    def get_street_name(self, obj):
+        return obj.apartment.street.name if obj.apartment and obj.apartment.street else None
 
     def get_type_display(self, obj):
         return obj.get_type_display()
