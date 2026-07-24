@@ -2,7 +2,30 @@
 房源模块序列化器
 """
 from rest_framework import serializers
+
 from core.fields import TimestampField
+
+# ============================================================
+# 枚举常量定义
+# ============================================================
+
+VALID_LAYOUT_TYPES = {
+    'studio', 'one_bedroom', 'two_bedroom', 'two_bedroom_one_living',
+    'two_bedroom_two_living', 'three_bedroom_one_living',
+    'three_bedroom_two_living',
+}
+VALID_WINDOW_TYPES = {'inner', 'outer', 'external', 'internal'}
+VALID_ORIENTATIONS = {
+    'east', 'south', 'west', 'north',
+    'southeast', 'southwest', 'northeast', 'northwest',
+}
+VALID_LEASE_TERMS = {'1_month', '3_month', '6_month', '6_months', '1_year', '18_months', '2_years'}
+VALID_PAYMENT_METHODS = {'pay_1_deposit_1', 'pay_3_deposit_1'}
+VALID_FACILITIES = {
+    'air_conditioner', 'washing_machine', 'refrigerator',
+    'broadband', 'water_heater', 'wardrobe',
+    'private_bathroom', 'balcony', 'kitchen', 'wifi',
+}
 
 
 class RentalPlanSerializer(serializers.Serializer):
@@ -10,6 +33,18 @@ class RentalPlanSerializer(serializers.Serializer):
     lease_term = serializers.CharField(max_length=30, help_text='租期编码')
     monthly_rent = serializers.IntegerField(min_value=1, help_text='月租金（元），必须大于0')
     payment_method = serializers.CharField(max_length=30, help_text='支付方式编码')
+
+    def validate_lease_term(self, value):
+        """校验租期编码合法性"""
+        if value not in VALID_LEASE_TERMS:
+            raise serializers.ValidationError(f'无效的租期: {value}')
+        return value
+
+    def validate_payment_method(self, value):
+        """校验支付方式编码合法性"""
+        if value not in VALID_PAYMENT_METHODS:
+            raise serializers.ValidationError(f'无效的支付方式: {value}')
+        return value
 
 
 class RoomTypeSerializer(serializers.Serializer):
@@ -35,6 +70,31 @@ class RoomTypeSerializer(serializers.Serializer):
         """校验房型图片数量 ≤5 张"""
         if len(value) > 5:
             raise serializers.ValidationError('房型图片最多 5 张')
+        return value
+
+    def validate_facilities(self, value):
+        """校验设施编码合法性"""
+        invalid = [v for v in value if v not in VALID_FACILITIES]
+        if invalid:
+            raise serializers.ValidationError(f'无效的设施编码: {", ".join(invalid)}')
+        return value
+
+    def validate_layout_type(self, value):
+        """校验户型编码合法性"""
+        if value not in VALID_LAYOUT_TYPES:
+            raise serializers.ValidationError(f'无效的户型类型: {value}')
+        return value
+
+    def validate_window_type(self, value):
+        """校验窗户类型编码合法性"""
+        if value not in VALID_WINDOW_TYPES:
+            raise serializers.ValidationError(f'无效的窗户类型: {value}')
+        return value
+
+    def validate_orientation(self, value):
+        """校验朝向编码合法性"""
+        if value and value not in VALID_ORIENTATIONS:
+            raise serializers.ValidationError(f'无效的朝向: {value}')
         return value
 
     def validate_rental_plans(self, value):

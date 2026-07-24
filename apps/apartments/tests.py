@@ -6,11 +6,11 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from apps.users.models import User
-from apps.districts.models import District
-from apps.apartments.models import Apartment, RoomType, RentalPlan
-from apps.favorites.models import Favorite
+from apps.apartments.models import Apartment, RentalPlan, RoomType
 from apps.audits.models import AuditRecord
+from apps.districts.models import District
+from apps.favorites.models import Favorite
+from apps.users.models import User
 
 
 class PublicApartmentListTests(TestCase):
@@ -1148,3 +1148,199 @@ class CreateApartmentTests(TestCase):
         payload['room_types'][0]['rental_plans'][0]['monthly_rent'] = -100
         response = self.client.post(self.url, payload, format='json')
         self.assertEqual(response.status_code, 200)
+
+
+class EnumValidationTests(TestCase):
+    """枚举字段合法性校验单元测试"""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.url = '/api/v1/merchant/apartments/'
+
+        self.district = District.objects.create(name='浦东新区', level=1, code='310115', sort=0)
+        self.street = District.objects.create(name='陆家嘴街道', level=2, code='310115001', parent=self.district, sort=0)
+
+        self.landlord = User.objects.create(phone='13800138000', password='fake', role='landlord', is_active=True)
+        self.landlord_token = self._get_token(self.landlord)
+
+        self.valid_payload = {
+            'name': '陆家嘴精品公寓',
+            'cover_image': 'https://example.com/cover.jpg',
+            'description': '这是一套位于陆家嘴的精品公寓。',
+            'district_id': self.district.id,
+            'street_id': self.street.id,
+            'detail_address': '陆家嘴金融中心888号',
+            'contact_phone': '13800138000',
+            'room_types': [
+                {
+                    'name': '标准单间',
+                    'images': ['https://example.com/room1.jpg'],
+                    'facilities': ['air_conditioner', 'washing_machine'],
+                    'layout_type': 'studio',
+                    'window_type': 'external',
+                    'orientation': 'south',
+                    'floor': 5,
+                    'sort': 0,
+                    'rental_plans': [
+                        {'lease_term': '1_month', 'monthly_rent': 3000, 'payment_method': 'pay_1_deposit_1'},
+                    ],
+                },
+            ],
+        }
+
+    def _get_token(self, user):
+        refresh = RefreshToken.for_user(user)
+        refresh['role'] = user.role
+        refresh['phone'] = user.phone
+        refresh['username'] = user.username
+        return str(refresh.access_token)
+
+    def _assert_enum_error(self, payload, expected_msg_substring):
+        """辅助方法：断言返回 400 且错误信息包含指定子串"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
+        response = self.client.post(self.url, payload, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['code'], 400002)
+        self.assertIn(expected_msg_substring, response.json()['message'])
+
+    def test_create_invalid_layout_type(self):
+        """非法 layout_type 返回 400"""
+        payload = dict(self.valid_payload)
+        payload['room_types'] = [dict(self.valid_payload['room_types'][0])]
+        payload['room_types'][0]['layout_type'] = 'invalid_layout'
+        self._assert_enum_error(payload, '无效的户型类型')
+
+    def test_create_invalid_window_type(self):
+        """非法 window_type 返回 400"""
+        payload = dict(self.valid_payload)
+        payload['room_types'] = [dict(self.valid_payload['room_types'][0])]
+        payload['room_types'][0]['window_type'] = 'invalid_window'
+        self._assert_enum_error(payload, '无效的窗户类型')
+
+    def test_create_invalid_orientation(self):
+        """非法 orientation 返回 400"""
+        payload = dict(self.valid_payload)
+        payload['room_types'] = [dict(self.valid_payload['room_types'][0])]
+        payload['room_types'][0]['orientation'] = 'invalid_orientation'
+        self._assert_enum_error(payload, '无效的朝向')
+
+    def test_create_invalid_facilities(self):
+        """非法 facilities 返回 400"""
+        payload = dict(self.valid_payload)
+        payload['room_types'] = [dict(self.valid_payload['room_types'][0])]
+        payload['room_types'][0]['facilities'] = ['invalid_facility']
+        self._assert_enum_error(payload, '无效的设施编码')
+
+    def test_create_invalid_lease_term(self):
+        """非法 lease_term 返回 400"""
+        payload = dict(self.valid_payload)
+        payload['room_types'] = [dict(self.valid_payload['room_types'][0])]
+        payload['room_types'][0]['rental_plans'] = [
+            {'lease_term': 'invalid_term', 'monthly_rent': 3000, 'payment_method': 'pay_1_deposit_1'},
+        ]
+        self._assert_enum_error(payload, '无效的租期')
+
+    def test_create_invalid_payment_method(self):
+        """非法 payment_method 返回 400"""
+        payload = dict(self.valid_payload)
+        payload['room_types'] = [dict(self.valid_payload['room_types'][0])]
+        payload['room_types'][0]['rental_plans'] = [
+            {'lease_term': '1_month', 'monthly_rent': 3000, 'payment_method': 'invalid_payment'},
+        ]
+        self._assert_enum_error(payload, '无效的支付方式')
+
+    def test_update_invalid_layout_type(self):
+        """更新时非法 layout_type 返回 400"""
+        apartment = Apartment.objects.create(
+            landlord=self.landlord,
+            name='测试公寓',
+            cover_image='https://example.com/cover.jpg',
+            description='描述',
+            district=self.district,
+            street=self.street,
+            detail_address='测试路1号',
+            contact_phone='13800138000',
+            status='published',
+            min_monthly_rent=3000,
+        )
+        RoomType.objects.create(
+            apartment=apartment,
+            name='标准单间',
+            images=['https://example.com/room.jpg'],
+            facilities=['air_conditioner'],
+            layout_type='studio',
+            window_type='external',
+            orientation='south',
+            floor=5,
+            sort=0,
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
+        payload = {
+            'room_types': [
+                {
+                    'name': '豪华单间',
+                    'images': ['https://example.com/new_room.jpg'],
+                    'facilities': ['air_conditioner'],
+                    'layout_type': 'invalid_layout',
+                    'window_type': 'external',
+                    'orientation': 'north',
+                    'floor': 3,
+                    'sort': 1,
+                    'rental_plans': [
+                        {'lease_term': '1_month', 'monthly_rent': 3500, 'payment_method': 'pay_1_deposit_1'},
+                    ],
+                },
+            ],
+        }
+        response = self.client.put(f'/api/v1/merchant/apartments/{apartment.id}', payload, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['code'], 400002)
+        self.assertIn('无效的户型类型', response.json()['message'])
+
+    def test_update_invalid_lease_term(self):
+        """更新时非法 lease_term 返回 400"""
+        apartment = Apartment.objects.create(
+            landlord=self.landlord,
+            name='测试公寓',
+            cover_image='https://example.com/cover.jpg',
+            description='描述',
+            district=self.district,
+            street=self.street,
+            detail_address='测试路1号',
+            contact_phone='13800138000',
+            status='published',
+            min_monthly_rent=3000,
+        )
+        RoomType.objects.create(
+            apartment=apartment,
+            name='标准单间',
+            images=['https://example.com/room.jpg'],
+            facilities=['air_conditioner'],
+            layout_type='studio',
+            window_type='external',
+            orientation='south',
+            floor=5,
+            sort=0,
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
+        payload = {
+            'room_types': [
+                {
+                    'name': '豪华单间',
+                    'images': ['https://example.com/new_room.jpg'],
+                    'facilities': ['air_conditioner'],
+                    'layout_type': 'studio',
+                    'window_type': 'external',
+                    'orientation': 'north',
+                    'floor': 3,
+                    'sort': 1,
+                    'rental_plans': [
+                        {'lease_term': 'invalid_term', 'monthly_rent': 3500, 'payment_method': 'pay_1_deposit_1'},
+                    ],
+                },
+            ],
+        }
+        response = self.client.put(f'/api/v1/merchant/apartments/{apartment.id}', payload, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['code'], 400002)
+        self.assertIn('无效的租期', response.json()['message'])
