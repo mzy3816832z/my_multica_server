@@ -24,6 +24,7 @@ VALID_FACILITIES = {
     'air_conditioner', 'washing_machine', 'refrigerator',
     'broadband', 'water_heater', 'wardrobe',
     'private_bathroom', 'balcony', 'kitchen', 'wifi',
+    'tv', 'sofa', 'bed', 'desk', 'elevator', 'parking', 'gym',
 }
 
 
