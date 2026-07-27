@@ -13,7 +13,7 @@ VALID_LAYOUT_TYPES = {
     'studio', 'one_bedroom', 'two_bedroom', 'two_bedroom_2',
     'three_bedroom', 'three_bedroom_2', 'loft', 'duplex',
 }
-VALID_WINDOW_TYPES = {'inner', 'outer', 'external', 'internal'}
+VALID_WINDOW_TYPES = {'inner', 'outer'}
 VALID_ORIENTATIONS = {
     'east', 'south', 'west', 'north',
     'southeast', 'southwest', 'northeast', 'northwest',

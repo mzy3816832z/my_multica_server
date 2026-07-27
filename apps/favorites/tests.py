@@ -45,7 +45,7 @@ class FavoriteAddTests(TestCase):
             images=['https://example.com/room.jpg'],
             facilities=['air_conditioner'],
             layout_type='studio',
-            window_type='external',
+            window_type='outer',
             orientation='south',
             floor=5,
             sort=0,
