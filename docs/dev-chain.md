@@ -28,3 +28,4 @@
 | fix-cover-image | agent/multica-agent-python-django-re/d29290d3 | main | e5ebaa4 | 2026-07-23 | 已合并 |
 | fix-payment | feature/apartment-rental/backend-fix-payment-methods | main | 32b58cd | 2026-07-27 | 已合并 |
 | fix-layout | feature/apartment-rental/backend-fix-layout-types | feature/apartment-rental/backend-fix-payment-methods | b40aabf | 2026-07-27 | 已合并 |
+| fix-audit-sort | feature/apartment-rental/backend-fix-audit-sort | main | 1927ae3 | 2026-07-27 | 待合并 |
