@@ -4,6 +4,7 @@
 import logging
 
 from django.db import transaction
+from django.db.models import Case, IntegerField, Value, When
 from drf_spectacular.utils import extend_schema
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -54,7 +55,14 @@ def merchant_audit_list(request):
     queryset = AuditRecord.objects.filter(
         deleted_at__isnull=True,
         apartment__landlord=request.user,
-    ).order_by('-created_at', '-id')
+    ).annotate(
+        status_order=Case(
+            When(status='pending', then=Value(1)),
+            When(status='approved', then=Value(2)),
+            When(status='rejected', then=Value(3)),
+            output_field=IntegerField(),
+        )
+    ).order_by('status_order', 'created_at', 'id')
 
     # 按房源名称搜索
     keyword = request.query_params.get('keyword')
@@ -92,7 +100,14 @@ def audit_list(request):
     GET /api/v1/admin/audits
     审核单列表（管理员）
     """
-    queryset = AuditRecord.objects.filter(deleted_at__isnull=True).order_by('-created_at', '-id')
+    queryset = AuditRecord.objects.filter(deleted_at__isnull=True).annotate(
+        status_order=Case(
+            When(status='pending', then=Value(1)),
+            When(status='approved', then=Value(2)),
+            When(status='rejected', then=Value(3)),
+            output_field=IntegerField(),
+        )
+    ).order_by('status_order', 'created_at', 'id')
 
     # 按类型筛选
     audit_type = request.query_params.get('type')
