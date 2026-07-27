@@ -200,26 +200,26 @@ class PublicApartmentListTests(TestCase):
         self.assertIn('district_name', item)
         self.assertIn('street_name', item)
         self.assertIn('min_monthly_rent', item)
-        self.assertIn('is_favorited', item)
+        self.assertIn('is_favorite', item)
 
     def test_list_anonymous_not_favorited(self):
-        """未登录用户 is_favorited 为 False"""
+        """未登录用户 is_favorite 为 False"""
         response = self.client.get(self.url)
         data = response.json()['data']
         for item in data['items']:
-            self.assertEqual(item['is_favorited'], False)
+            self.assertEqual(item['is_favorite'], False)
 
     def test_list_logged_in_favorited(self):
-        """已登录用户已收藏房源 is_favorited 为 True"""
+        """已登录用户已收藏房源 is_favorite 为 True"""
         Favorite.objects.create(user=self.tenant, apartment=self.apartment_a)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.tenant_token}')
         response = self.client.get(self.url)
         data = response.json()['data']
         for item in data['items']:
             if item['id'] == self.apartment_a.id:
-                self.assertEqual(item['is_favorited'], True)
+                self.assertEqual(item['is_favorite'], True)
             else:
-                self.assertEqual(item['is_favorited'], False)
+                self.assertEqual(item['is_favorite'], False)
 
 
 class PublicApartmentDetailTests(TestCase):
@@ -278,7 +278,7 @@ class PublicApartmentDetailTests(TestCase):
         self.assertEqual(data['min_monthly_rent'], 3000)
         self.assertIn('room_types', data)
         self.assertEqual(len(data['room_types']), 1)
-        self.assertEqual(data['is_favorited'], False)
+        self.assertEqual(data['is_favorite'], False)
 
     def test_detail_not_found(self):
         """获取未上架房源详情返回 404"""
@@ -305,12 +305,12 @@ class PublicApartmentDetailTests(TestCase):
         self.assertEqual(response.json()['code'], 404001)
 
     def test_detail_with_favorite(self):
-        """已登录且已收藏时 is_favorited 为 True"""
+        """已登录且已收藏时 is_favorite 为 True"""
         Favorite.objects.create(user=self.tenant, apartment=self.apartment)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.tenant_token}')
         response = self.client.get(f'/api/v1/apartments/{self.apartment.id}/')
         data = response.json()['data']
-        self.assertEqual(data['is_favorited'], True)
+        self.assertEqual(data['is_favorite'], True)
 
     def test_detail_room_types_structure(self):
         """详情中房型卡片结构正确"""

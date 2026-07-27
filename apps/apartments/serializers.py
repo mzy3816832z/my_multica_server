@@ -369,7 +369,7 @@ class ApartmentListItemSerializer(serializers.Serializer):
     district_name = serializers.SerializerMethodField(help_text='行政区名称')
     street_name = serializers.SerializerMethodField(help_text='街道/镇名称')
     min_monthly_rent = serializers.IntegerField(help_text='最低月租金（元）')
-    is_favorited = serializers.SerializerMethodField(help_text='当前用户是否已收藏')
+    is_favorite = serializers.SerializerMethodField(help_text='当前用户是否已收藏')
 
     def get_district_name(self, obj):
         return obj.district.name if obj.district else None
@@ -377,7 +377,7 @@ class ApartmentListItemSerializer(serializers.Serializer):
     def get_street_name(self, obj):
         return obj.street.name if obj.street else None
 
-    def get_is_favorited(self, obj):
+    def get_is_favorite(self, obj):
         """若用户已登录，检查是否已收藏该房源"""
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
@@ -397,7 +397,7 @@ class ApartmentDetailSerializer(serializers.Serializer):
     detail_address = serializers.CharField(max_length=200, help_text='详细门牌号')
     contact_phone = serializers.CharField(max_length=11, help_text='联系电话')
     min_monthly_rent = serializers.IntegerField(help_text='最低月租金（元）')
-    is_favorited = serializers.SerializerMethodField(help_text='当前用户是否已收藏')
+    is_favorite = serializers.SerializerMethodField(help_text='当前用户是否已收藏')
     room_types = serializers.SerializerMethodField(help_text='房型卡片列表')
 
     def get_district_name(self, obj):
@@ -406,7 +406,7 @@ class ApartmentDetailSerializer(serializers.Serializer):
     def get_street_name(self, obj):
         return obj.street.name if obj.street else None
 
-    def get_is_favorited(self, obj):
+    def get_is_favorite(self, obj):
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
             return False
