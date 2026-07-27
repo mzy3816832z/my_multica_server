@@ -64,18 +64,21 @@ class MerchantAuditListItemSerializer(serializers.Serializer):
 
 
 class AuditDetailSerializer(serializers.Serializer):
-    """审核详情序列化器"""
+    """审核详情序列化器
+
+    注意：submitted_data / original_data 中仅保留 district_id、street_id 原始字段，
+    不额外注入 district_name、street_name 等派生字段。前端如需展示名称，
+    可通过 district_id / street_id 调用 /api/v1/districts 接口获取。
+    """
     id = serializers.IntegerField(help_text='审核单 ID')
     apartment_id = serializers.IntegerField(help_text='关联房源 ID')
     apartment_name = serializers.SerializerMethodField(help_text='公寓名称')
-    district_name = serializers.SerializerMethodField(help_text='行政区名称')
-    street_name = serializers.SerializerMethodField(help_text='街道/镇名称')
     type = serializers.CharField(max_length=30, help_text='审核类型')
     type_display = serializers.SerializerMethodField(help_text='审核类型展示')
     status = serializers.CharField(max_length=30, help_text='审核状态')
     status_display = serializers.SerializerMethodField(help_text='审核状态展示')
-    submitted_data = serializers.JSONField(help_text='提交时完整房源快照')
-    original_data = serializers.JSONField(help_text='原房源快照（变更审核时）', required=False)
+    submitted_data = serializers.JSONField(help_text='提交时完整房源快照（含 district_id、street_id）')
+    original_data = serializers.JSONField(help_text='原房源快照（变更审核时，含 district_id、street_id）', required=False)
     changed_fields = serializers.JSONField(help_text='变更字段名列表', required=False)
     reject_reason = serializers.CharField(max_length=500, help_text='驳回原因', required=False)
     reviewer_id = serializers.IntegerField(help_text='审核管理员 ID', allow_null=True)
@@ -84,12 +87,6 @@ class AuditDetailSerializer(serializers.Serializer):
 
     def get_apartment_name(self, obj):
         return obj.apartment.name if obj.apartment else None
-
-    def get_district_name(self, obj):
-        return obj.apartment.district.name if obj.apartment and obj.apartment.district else None
-
-    def get_street_name(self, obj):
-        return obj.apartment.street.name if obj.apartment and obj.apartment.street else None
 
     def get_type_display(self, obj):
         return obj.get_type_display()
