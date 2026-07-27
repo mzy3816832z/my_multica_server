@@ -10,9 +10,8 @@ from core.fields import TimestampField
 # ============================================================
 
 VALID_LAYOUT_TYPES = {
-    'studio', 'one_bedroom', 'two_bedroom', 'two_bedroom_one_living',
-    'two_bedroom_two_living', 'three_bedroom_one_living',
-    'three_bedroom_two_living',
+    'studio', 'one_bedroom', 'two_bedroom', 'two_bedroom_2',
+    'three_bedroom', 'three_bedroom_2', 'loft', 'duplex',
 }
 VALID_WINDOW_TYPES = {'inner', 'outer', 'external', 'internal'}
 VALID_ORIENTATIONS = {
