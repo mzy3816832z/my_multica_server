@@ -81,7 +81,7 @@ def test_seed_system_dict_lease_term(seeded_db):
     codes = list(
         SystemDict.objects.filter(category='lease_term').order_by('sort').values_list('code', flat=True)
     )
-    expected = ['1_month', '3_months', '6_months', '1_year', '18_months', '2_years']
+    expected = ['1_month', '3_month', '6_month', '1_year', '18_months', '2_years']
     assert codes == expected
 
 

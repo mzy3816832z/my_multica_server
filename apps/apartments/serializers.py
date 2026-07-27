@@ -18,7 +18,7 @@ VALID_ORIENTATIONS = {
     'east', 'south', 'west', 'north',
     'southeast', 'southwest', 'northeast', 'northwest',
 }
-VALID_LEASE_TERMS = {'1_month', '3_month', '6_month', '6_months', '1_year', '18_months', '2_years'}
+VALID_LEASE_TERMS = {'1_month', '3_month', '6_month', '1_year', '18_months', '2_years'}
 VALID_PAYMENT_METHODS = {'pay_1_deposit_1', 'pay_3_deposit_1', 'pay_1_deposit_3', 'pay_1_deposit_6', 'pay_1_deposit_12', 'no_deposit'}
 VALID_FACILITIES = {
     'air_conditioner', 'washing_machine', 'refrigerator',

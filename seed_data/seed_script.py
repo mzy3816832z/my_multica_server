@@ -150,8 +150,8 @@ SYSTEM_DICTS = [
 
     # 租期
     {'category': 'lease_term', 'code': '1_month', 'label': '1个月', 'sort': 1},
-    {'category': 'lease_term', 'code': '3_months', 'label': '3个月', 'sort': 2},
-    {'category': 'lease_term', 'code': '6_months', 'label': '半年', 'sort': 3},
+    {'category': 'lease_term', 'code': '3_month', 'label': '3个月', 'sort': 2},
+    {'category': 'lease_term', 'code': '6_month', 'label': '半年', 'sort': 3},
     {'category': 'lease_term', 'code': '1_year', 'label': '1年', 'sort': 4},
     {'category': 'lease_term', 'code': '18_months', 'label': '18个月', 'sort': 5},
     {'category': 'lease_term', 'code': '2_years', 'label': '2年', 'sort': 6},
