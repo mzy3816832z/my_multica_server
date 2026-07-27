@@ -44,9 +44,9 @@ logger = logging.getLogger('apps')
     parameters=[
         {'name': 'keyword', 'in': 'query', 'schema': {'type': 'string'}, 'description': '公寓名称关键词'},
         {'name': 'district_id', 'in': 'query', 'schema': {'type': 'integer'}, 'description': '行政区 ID'},
-        {'name': 'street_id', 'in': 'query', 'schema': {'type': 'integer'}, 'description': '街道/镇 ID'},
-        {'name': 'layout_type', 'in': 'query', 'schema': {'type': 'string'}, 'description': '户型编码'},
-        {'name': 'lease_term', 'in': 'query', 'schema': {'type': 'string'}, 'description': '租期编码'},
+        {'name': 'street_ids', 'in': 'query', 'schema': {'type': 'array', 'items': {'type': 'integer'}}, 'description': '街道/镇 ID 数组（多选）'},
+        {'name': 'layout_types', 'in': 'query', 'schema': {'type': 'array', 'items': {'type': 'string'}}, 'description': '户型编码数组（多选）'},
+        {'name': 'lease_terms', 'in': 'query', 'schema': {'type': 'array', 'items': {'type': 'string'}}, 'description': '租期编码数组（多选）'},
         {'name': 'min_price', 'in': 'query', 'schema': {'type': 'integer'}, 'description': '最低月租金'},
         {'name': 'max_price', 'in': 'query', 'schema': {'type': 'integer'}, 'description': '最高月租金'},
         {'name': 'page', 'in': 'query', 'schema': {'type': 'integer'}, 'description': '页码，默认 1'},
@@ -75,22 +75,46 @@ def apartment_list(request):
         except ValueError:
             pass
 
-    # 街道筛选
+    # 街道筛选（支持多选）
+    street_ids = request.query_params.get('street_ids')
+    if street_ids:
+        try:
+            ids = [int(x) for x in street_ids.split(',') if x.strip()]
+            if ids:
+                queryset = queryset.filter(street_id__in=ids)
+        except ValueError:
+            pass
+
+    # 户型筛选（支持多选）
+    layout_types = request.query_params.get('layout_types')
+    if layout_types:
+        types = [x.strip() for x in layout_types.split(',') if x.strip()]
+        if types:
+            queryset = queryset.filter(room_types__layout_type__in=types).distinct()
+
+    # 租期筛选（支持多选）
+    lease_terms = request.query_params.get('lease_terms')
+    if lease_terms:
+        terms = [x.strip() for x in lease_terms.split(',') if x.strip()]
+        if terms:
+            queryset = queryset.filter(
+                room_types__rental_plans__lease_term__in=terms
+            ).distinct()
+
+    # 向后兼容：旧单值参数仍可正常工作
     street_id = request.query_params.get('street_id')
-    if street_id:
+    if street_id and not street_ids:
         try:
             queryset = queryset.filter(street_id=int(street_id))
         except ValueError:
             pass
 
-    # 户型筛选（通过关联房型）
     layout_type = request.query_params.get('layout_type')
-    if layout_type:
+    if layout_type and not layout_types:
         queryset = queryset.filter(room_types__layout_type=layout_type).distinct()
 
-    # 租期筛选（通过关联房型→租金方案）
     lease_term = request.query_params.get('lease_term')
-    if lease_term:
+    if lease_term and not lease_terms:
         queryset = queryset.filter(
             room_types__rental_plans__lease_term=lease_term
         ).distinct()
