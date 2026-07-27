@@ -147,25 +147,26 @@ def my_favorites(request):
 @extend_schema(
     request=None,
     responses={200: None},
-    summary='取消收藏',
-    description='按收藏记录 ID 取消收藏（逻辑删除）。只能取消自己的收藏。',
+    summary='按房源 ID 取消收藏',
+    description='按房源 ID 取消收藏（逻辑删除）。只能取消自己的收藏。',
     tags=['收藏'],
 )
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
-def delete_favorite(request, pk):
+def delete_favorite_by_apartment(request, apartment_id):
     """
-    DELETE /api/v1/favorites/<id>
-    取消收藏
+    DELETE /api/v1/favorites/by-apartment/<apartment_id>
+    按房源 ID 取消收藏
     """
     user = request.user
 
     try:
-        favorite = Favorite.objects.get(id=pk, user=user)
+        favorite = Favorite.objects.get(apartment_id=apartment_id, user=user)
     except Favorite.DoesNotExist:
         raise NotFoundException('收藏记录不存在')
 
     favorite.deleted_at = timezone.now()
     favorite.save(update_fields=['deleted_at', 'updated_at'])
-    logger.info(f'[Unfavorite] user={user.id}, favorite={pk}')
+    logger.info(f'[UnfavoriteByApartment] user={user.id}, apartment={apartment_id}')
     return unified_response(data=None)
+

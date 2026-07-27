@@ -324,7 +324,7 @@ class FavoriteDeleteTests(TestCase):
     def test_delete_success(self):
         """正常取消收藏"""
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.tenant_token}')
-        response = self.client.delete(f'/api/v1/favorites/{self.favorite.id}/')
+        response = self.client.delete(f'/api/v1/favorites/by-apartment/{self.apartment.id}/')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['code'], 0)
         # 验证逻辑删除
@@ -334,14 +334,14 @@ class FavoriteDeleteTests(TestCase):
     def test_delete_not_found(self):
         """取消不存在的收藏记录"""
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.tenant_token}')
-        response = self.client.delete('/api/v1/favorites/99999/')
+        response = self.client.delete('/api/v1/favorites/by-apartment/99999/')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['code'], 404001)
 
     def test_delete_other_user_favorite(self):
         """不能取消别人的收藏"""
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.other_token}')
-        response = self.client.delete(f'/api/v1/favorites/{self.favorite.id}/')
+        response = self.client.delete(f'/api/v1/favorites/by-apartment/{self.apartment.id}/')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['code'], 404001)
         # 验证记录未被删除
@@ -349,6 +349,6 @@ class FavoriteDeleteTests(TestCase):
 
     def test_delete_unauthorized(self):
         """未登录返回 401"""
-        response = self.client.delete(f'/api/v1/favorites/{self.favorite.id}/')
+        response = self.client.delete(f'/api/v1/favorites/by-apartment/{self.apartment.id}/')
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.json()['code'], 401001)
