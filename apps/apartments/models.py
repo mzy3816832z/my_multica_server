@@ -107,10 +107,6 @@ class RoomType(BaseModel):
         max_length=30,
         verbose_name='内外窗编码',
     )
-    orientation = models.CharField(
-        max_length=30,
-        verbose_name='朝向编码',
-    )
     floor = models.IntegerField(
         verbose_name='楼层',
     )

@@ -14,10 +14,6 @@ VALID_LAYOUT_TYPES = {
     'three_bedroom', 'three_bedroom_2', 'loft', 'duplex',
 }
 VALID_WINDOW_TYPES = {'inner', 'outer'}
-VALID_ORIENTATIONS = {
-    'east', 'south', 'west', 'north',
-    'southeast', 'southwest', 'northeast', 'northwest',
-}
 VALID_LEASE_TERMS = {'1_month', '3_month', '6_month', '1_year', '18_months', '2_years'}
 VALID_PAYMENT_METHODS = {'pay_1_deposit_1', 'pay_3_deposit_1', 'pay_1_deposit_3', 'pay_1_deposit_6', 'pay_1_deposit_12', 'no_deposit'}
 VALID_FACILITIES = {
@@ -61,7 +57,6 @@ class RoomTypeSerializer(serializers.Serializer):
     )
     layout_type = serializers.CharField(max_length=30, help_text='户型编码')
     window_type = serializers.CharField(max_length=30, help_text='内外窗编码')
-    orientation = serializers.CharField(max_length=30, required=False, allow_blank=True, default='', help_text='朝向编码')
     floor = serializers.IntegerField(min_value=1, help_text='楼层，必须≥1')
     sort = serializers.IntegerField(default=0, help_text='展示排序')
     rental_plans = RentalPlanSerializer(many=True, help_text='租期租金方案列表')
@@ -89,12 +84,6 @@ class RoomTypeSerializer(serializers.Serializer):
         """校验窗户类型编码合法性"""
         if value not in VALID_WINDOW_TYPES:
             raise serializers.ValidationError(f'无效的窗户类型: {value}')
-        return value
-
-    def validate_orientation(self, value):
-        """校验朝向编码合法性"""
-        if value and value not in VALID_ORIENTATIONS:
-            raise serializers.ValidationError(f'无效的朝向: {value}')
         return value
 
     def validate_rental_plans(self, value):
@@ -320,7 +309,6 @@ class RoomTypeListSerializer(serializers.Serializer):
     )
     layout_type = serializers.CharField(max_length=30, help_text='户型编码')
     window_type = serializers.CharField(max_length=30, help_text='内外窗编码')
-    orientation = serializers.CharField(max_length=30, help_text='朝向编码')
     floor = serializers.IntegerField(help_text='楼层')
     sort = serializers.IntegerField(help_text='展示排序')
     min_monthly_rent = serializers.SerializerMethodField(help_text='该房型最低月租金')
@@ -345,7 +333,6 @@ class RoomTypeDetailSerializer(serializers.Serializer):
     )
     layout_type = serializers.CharField(max_length=30, help_text='户型编码')
     window_type = serializers.CharField(max_length=30, help_text='内外窗编码')
-    orientation = serializers.CharField(max_length=30, help_text='朝向编码')
     floor = serializers.IntegerField(help_text='楼层')
     sort = serializers.IntegerField(help_text='展示排序')
     rental_plans = RentalPlanListSerializer(many=True, help_text='租期租金方案列表')

@@ -268,7 +268,8 @@ class AdminAuditListTests(TestCase):
             facilities=['air_conditioner'],
             layout_type='studio',
             window_type='outer',
-            orientation='south',
+            
+
             floor=5,
             sort=0,
         )
@@ -488,7 +489,8 @@ class AdminAuditApproveTests(TestCase):
             facilities=['air_conditioner'],
             layout_type='studio',
             window_type='outer',
-            orientation='south',
+            
+
             floor=5,
             sort=0,
         )
@@ -557,7 +559,7 @@ class AdminAuditApproveTests(TestCase):
                         'facilities': ['wifi'],
                         'layout_type': 'studio',
                         'window_type': 'outer',
-                        'orientation': 'north',
+                        
                         'floor': 3,
                         'sort': 1,
                         'rental_plans': [
