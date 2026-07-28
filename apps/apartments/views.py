@@ -270,7 +270,6 @@ def create_apartment(request):
                 facilities=rt_data.get('facilities', []),
                 layout_type=rt_data['layout_type'],
                 window_type=rt_data['window_type'],
-                orientation=rt_data.get('orientation', ''),
                 floor=rt_data['floor'],
                 sort=rt_data.get('sort', 0),
             )
@@ -361,7 +360,6 @@ def _build_apartment_snapshot(apartment):
             'facilities': rt.facilities,
             'layout_type': rt.layout_type,
             'window_type': rt.window_type,
-            'orientation': rt.orientation if rt.orientation else '',
             'floor': rt.floor,
             'sort': rt.sort,
             'rental_plans': plans,
@@ -518,7 +516,6 @@ def merchant_apartment_update(request, id):
                         facilities=rt_data.get('facilities', []),
                         layout_type=rt_data['layout_type'],
                         window_type=rt_data['window_type'],
-                        orientation=rt_data.get('orientation', ''),
                         floor=rt_data['floor'],
                         sort=rt_data.get('sort', 0),
                     )
@@ -606,7 +603,6 @@ def _build_room_types_from_data(room_types_data):
             'facilities': rt_data.get('facilities', []),
             'layout_type': rt_data['layout_type'],
             'window_type': rt_data['window_type'],
-            'orientation': rt_data.get('orientation', ''),
             'floor': rt_data['floor'],
             'sort': rt_data.get('sort', 0),
             'rental_plans': plans,

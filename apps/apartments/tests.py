@@ -49,7 +49,8 @@ class PublicApartmentListTests(TestCase):
             facilities=['air_conditioner'],
             layout_type='studio',
             window_type='outer',
-            orientation='south',
+            
+
             floor=5,
             sort=0,
         )
@@ -76,7 +77,8 @@ class PublicApartmentListTests(TestCase):
             facilities=['air_conditioner', 'washing_machine'],
             layout_type='two_bedroom',
             window_type='outer',
-            orientation='east',
+            
+
             floor=8,
             sort=0,
         )
@@ -252,7 +254,8 @@ class PublicApartmentDetailTests(TestCase):
             facilities=['air_conditioner'],
             layout_type='studio',
             window_type='outer',
-            orientation='south',
+            
+
             floor=5,
             sort=0,
         )
@@ -325,7 +328,6 @@ class PublicApartmentDetailTests(TestCase):
         self.assertIn('facilities', rt)
         self.assertIn('layout_type', rt)
         self.assertIn('window_type', rt)
-        self.assertIn('orientation', rt)
         self.assertIn('floor', rt)
         self.assertIn('sort', rt)
         self.assertIn('min_monthly_rent', rt)
@@ -358,7 +360,8 @@ class ApartmentRoomTypesTests(TestCase):
             facilities=[],
             layout_type='studio',
             window_type='outer',
-            orientation='south',
+            
+
             floor=3,
             sort=1,
         )
@@ -370,7 +373,8 @@ class ApartmentRoomTypesTests(TestCase):
             facilities=['air_conditioner'],
             layout_type='studio',
             window_type='inner',
-            orientation='north',
+            
+
             floor=5,
             sort=0,
         )
@@ -432,7 +436,8 @@ class RoomTypeDetailTests(TestCase):
             facilities=['air_conditioner'],
             layout_type='studio',
             window_type='outer',
-            orientation='south',
+            
+
             floor=5,
             sort=0,
         )
@@ -478,7 +483,8 @@ class RoomTypeDetailTests(TestCase):
             facilities=[],
             layout_type='studio',
             window_type='outer',
-            orientation='south',
+            
+
             floor=1,
             sort=0,
         )
@@ -530,7 +536,8 @@ class MerchantApartmentListTests(TestCase):
             facilities=['air_conditioner'],
             layout_type='studio',
             window_type='outer',
-            orientation='south',
+            
+
             floor=5,
             sort=0,
         )
@@ -649,7 +656,8 @@ class MerchantApartmentDetailTests(TestCase):
             facilities=['air_conditioner'],
             layout_type='studio',
             window_type='outer',
-            orientation='south',
+            
+
             floor=5,
             sort=0,
         )
@@ -738,7 +746,8 @@ class MerchantApartmentUpdateTests(TestCase):
             facilities=['air_conditioner'],
             layout_type='studio',
             window_type='outer',
-            orientation='south',
+            
+
             floor=5,
             sort=0,
         )
@@ -831,7 +840,7 @@ class MerchantApartmentUpdateTests(TestCase):
                     'facilities': ['wifi'],
                     'layout_type': 'studio',
                     'window_type': 'outer',
-                    'orientation': 'north',
+                    
                     'floor': 3,
                     'sort': 1,
                     'rental_plans': [
@@ -996,7 +1005,7 @@ class CreateApartmentTests(TestCase):
                     'facilities': ['air_conditioner', 'washing_machine'],
                     'layout_type': 'studio',
                     'window_type': 'outer',
-                    'orientation': 'south',
+                    
                     'floor': 5,
                     'sort': 0,
                     'rental_plans': [
@@ -1047,7 +1056,7 @@ class CreateApartmentTests(TestCase):
                 'facilities': ['air_conditioner', 'wifi'],
                 'layout_type': 'two_bedroom',
                 'window_type': 'outer',
-                'orientation': 'east',
+                
                 'floor': 8,
                 'sort': 0,
                 'rental_plans': [
@@ -1060,7 +1069,7 @@ class CreateApartmentTests(TestCase):
                 'facilities': [],
                 'layout_type': 'studio',
                 'window_type': 'inner',
-                'orientation': 'north',
+                
                 'floor': 2,
                 'sort': 1,
                 'rental_plans': [
@@ -1178,7 +1187,7 @@ class EnumValidationTests(TestCase):
                     'facilities': ['air_conditioner', 'washing_machine'],
                     'layout_type': 'studio',
                     'window_type': 'outer',
-                    'orientation': 'south',
+                    
                     'floor': 5,
                     'sort': 0,
                     'rental_plans': [
@@ -1216,13 +1225,6 @@ class EnumValidationTests(TestCase):
         payload['room_types'] = [dict(self.valid_payload['room_types'][0])]
         payload['room_types'][0]['window_type'] = 'invalid_window'
         self._assert_enum_error(payload, '无效的窗户类型')
-
-    def test_create_invalid_orientation(self):
-        """非法 orientation 返回 400"""
-        payload = dict(self.valid_payload)
-        payload['room_types'] = [dict(self.valid_payload['room_types'][0])]
-        payload['room_types'][0]['orientation'] = 'invalid_orientation'
-        self._assert_enum_error(payload, '无效的朝向')
 
     def test_create_invalid_facilities(self):
         """非法 facilities 返回 400"""
@@ -1270,7 +1272,8 @@ class EnumValidationTests(TestCase):
             facilities=['air_conditioner'],
             layout_type='studio',
             window_type='outer',
-            orientation='south',
+            
+
             floor=5,
             sort=0,
         )
@@ -1283,7 +1286,7 @@ class EnumValidationTests(TestCase):
                     'facilities': ['air_conditioner'],
                     'layout_type': 'invalid_layout',
                     'window_type': 'outer',
-                    'orientation': 'north',
+                    
                     'floor': 3,
                     'sort': 1,
                     'rental_plans': [
@@ -1318,7 +1321,8 @@ class EnumValidationTests(TestCase):
             facilities=['air_conditioner'],
             layout_type='studio',
             window_type='outer',
-            orientation='south',
+            
+
             floor=5,
             sort=0,
         )
@@ -1331,7 +1335,7 @@ class EnumValidationTests(TestCase):
                     'facilities': ['air_conditioner'],
                     'layout_type': 'studio',
                     'window_type': 'outer',
-                    'orientation': 'north',
+                    
                     'floor': 3,
                     'sort': 1,
                     'rental_plans': [
