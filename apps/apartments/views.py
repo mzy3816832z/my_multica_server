@@ -427,7 +427,7 @@ def merchant_apartment_update(request, id):
     except Apartment.DoesNotExist:
         raise NotFoundException('房源不存在')
 
-    serializer = ApartmentUpdateSerializer(data=request.data)
+    serializer = ApartmentUpdateSerializer(data=request.data, instance=apartment)
     if not serializer.is_valid():
         first_msg = _extract_first_error(serializer.errors)
         raise BusinessException(first_msg, code=ErrorCode.BUSINESS_ERROR)

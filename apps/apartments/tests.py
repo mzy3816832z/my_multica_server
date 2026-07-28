@@ -875,13 +875,25 @@ class MerchantApartmentUpdateTests(TestCase):
         self.assertEqual(response.status_code, 200)
 
     def test_update_only_street_id_valid(self):
-        """仅传入有效 street_id（不传 district_id）应校验通过并触发审核"""
+        """仅传入有效 street_id（不传 district_id）且与当前不同，应校验通过并触发审核"""
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
-        payload = {'street_id': self.street2.id}
+        # 创建一个新的同行政区街道
+        new_street = District.objects.create(
+            name='张江街道', level=2, code='310115002', parent=self.district, sort=0
+        )
+        payload = {'street_id': new_street.id}
         response = self.client.put(f'/api/v1/merchant/apartments/{self.apartment.id}/', payload, format='json')
         self.assertEqual(response.status_code, 200)
         data = response.json()['data']
         self.assertEqual(data['updated'], False)
+
+    def test_update_only_street_id_mismatch_current_district(self):
+        """仅传入 street_id 但不属于当前行政区应返回 400"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_token}')
+        payload = {'street_id': self.street2.id}
+        response = self.client.put(f'/api/v1/merchant/apartments/{self.apartment.id}/', payload, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['code'], 400002)
 
     def test_update_only_street_id_invalid(self):
         """仅传入无效 street_id 应返回 400"""

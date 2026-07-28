@@ -195,7 +195,15 @@ class ApartmentUpdateSerializer(serializers.Serializer):
             except District.DoesNotExist:
                 raise serializers.ValidationError({'street_id': '无效的街道/镇 ID'})
 
-            if district_id is not None and street.parent_id != district_id:
+            # 确定用于校验的 district_id：优先使用传入的，否则用当前房源的
+            effective_district_id = district_id
+            if effective_district_id is None:
+                # 尝试从 instance 获取当前 district_id（用于更新场景）
+                apartment = getattr(self, 'instance', None)
+                if apartment is not None:
+                    effective_district_id = getattr(apartment, 'district_id', None)
+
+            if effective_district_id is not None and street.parent_id != effective_district_id:
                 raise serializers.ValidationError({'street_id': '街道/镇不在该行政区内'})
 
         if district_id is not None:
