@@ -5,21 +5,21 @@
 不再使用 dispatch 模式透传 request。
 """
 from django.urls import path
+from drf_spectacular.utils import extend_schema
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
-from drf_spectacular.utils import extend_schema
 
 from apps.apartments import views
-from core.permissions import IsLandlord
 from apps.apartments.serializers import (
     ApartmentCreateSerializer,
     ApartmentResponseSerializer,
-    MerchantApartmentListSerializer,
-    MerchantApartmentDetailSerializer,
-    MerchantApartmentUpdateResponseSerializer,
-    MerchantApartmentDeleteResponseSerializer,
     ApartmentUpdateSerializer,
+    MerchantApartmentDeleteResponseSerializer,
+    MerchantApartmentDetailSerializer,
+    MerchantApartmentListSerializer,
+    MerchantApartmentUpdateResponseSerializer,
 )
+from core.permissions import IsLandlord
 
 
 @extend_schema(

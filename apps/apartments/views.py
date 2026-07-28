@@ -3,30 +3,27 @@
 """
 import copy
 import logging
-from django.db import transaction
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated, AllowAny
-from drf_spectacular.utils import extend_schema
 
+from django.db import transaction
 from django.utils import timezone
-from core.response import unified_response, ErrorCode
-from core.exceptions import BusinessException, NotFoundException
-from core.permissions import IsLandlord
-from core.pagination import StandardPagination
-from apps.apartments.models import Apartment, RoomType, RentalPlan
+from drf_spectacular.utils import extend_schema
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+
+from apps.apartments.models import Apartment, RentalPlan, RoomType
 from apps.apartments.serializers import (
     ApartmentCreateSerializer,
-    ApartmentResponseSerializer,
-    ApartmentListItemSerializer,
     ApartmentDetailSerializer,
-    RoomTypeDetailSerializer,
+    ApartmentListItemSerializer,
     ApartmentUpdateSerializer,
-    MerchantApartmentListSerializer,
     MerchantApartmentDetailSerializer,
-    MerchantApartmentUpdateResponseSerializer,
-    MerchantApartmentDeleteResponseSerializer,
+    MerchantApartmentListSerializer,
+    RoomTypeDetailSerializer,
 )
 from apps.audits.models import AuditRecord
+from core.exceptions import BusinessException, NotFoundException
+from core.pagination import StandardPagination
+from core.response import ErrorCode, unified_response
 
 logger = logging.getLogger('apps')
 
@@ -334,8 +331,7 @@ def _extract_first_error(errors):
                 return str(val[0])
             elif isinstance(val, dict):
                 return _extract_first_error(val)
-            else:
-                return str(val) if not hasattr(val, '__iter__') else str(val)
+            return str(val)
     elif isinstance(errors, list):
         for item in errors:
             if isinstance(item, dict):
