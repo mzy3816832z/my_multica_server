@@ -34,5 +34,5 @@ def merchant_apartment_detail(request, id):
 
 urlpatterns = [
     path('', merchant_apartments, name='merchant-apartments'),
-    path('<int:id>', merchant_apartment_detail, name='merchant-apartment-detail'),
+    path('<int:id>/', merchant_apartment_detail, name='merchant-apartment-detail'),
 ]
