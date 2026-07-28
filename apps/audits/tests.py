@@ -112,9 +112,9 @@ class MerchantAuditListTests(TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()['data']
         self.assertEqual(data['total'], 2)
-        # 按 created_at 倒序，audit_a2 后创建排前面
+        # 按状态优先级正序（pending在前），同状态按 created_at 正序
         ids = [item['id'] for item in data['items']]
-        self.assertEqual(ids, [self.audit_a2.id, self.audit_a1.id])
+        self.assertEqual(ids, [self.audit_a1.id, self.audit_a2.id])
 
     def test_list_only_own_records(self):
         """商家只能查看自己的房源审核记录"""
@@ -196,13 +196,14 @@ class MerchantAuditListTests(TestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_list_order_by_created_at_desc(self):
-        """列表按提交时间倒序"""
+        """列表按状态优先级+提交时间正序"""
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.landlord_a_token}')
         response = self.client.get(self.url)
         data = response.json()['data']
         items = data['items']
         ids = [item['id'] for item in items]
-        self.assertEqual(ids, sorted(ids, reverse=True))
+        # pending 在前，rejected 在后；同状态按 created_at 正序
+        self.assertEqual(ids, [self.audit_a1.id, self.audit_a2.id])
 
     def test_list_fields(self):
         """返回字段与前端 MyApartmentsView.vue 对齐"""
@@ -388,14 +389,14 @@ class AdminAuditListTests(TestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_list_order_by_created_at_desc(self):
-        """列表按提交时间倒序"""
+        """列表按状态优先级+提交时间正序"""
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.admin_token}')
         response = self.client.get(self.url)
         data = response.json()['data']
         items = data['items']
-        # change_audit 后创建，created_at 更晚，应排在前面
+        # pending 在前，同状态按 created_at 正序
         ids = [item['id'] for item in items]
-        self.assertEqual(ids, sorted(ids, reverse=True))
+        self.assertEqual(ids, [self.first_audit.id, self.change_audit.id])
 
 
 class AdminAuditDetailTests(TestCase):
