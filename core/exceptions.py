@@ -114,7 +114,7 @@ def custom_exception_handler(exc, context):
 
         elif isinstance(exc, BusinessException):
             code = getattr(exc, 'custom_code', ErrorCode.SERVER_ERROR)
-            return unified_response(code=code, message=str(exc.detail), status_code=200)
+            return unified_response(code=code, message=str(exc.detail), status_code=exc.status_code)
 
         else:
             # 其他 DRF 异常
