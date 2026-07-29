@@ -15,7 +15,7 @@ from core.views import health_check
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('health', health_check, name='health'),
+    path('health/', health_check, name='health'),
     path('api/v1/auth/', include('apps.users.urls')),
     path('api/v1/uploads/', include('apps.uploads.urls')),
     path('api/v1/apartments/', include('apps.apartments.urls')),
